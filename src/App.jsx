@@ -4,7 +4,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 
 // Public Pages
-import FloatingChatButton from './components/common/FloatingChatButton';
+import RulesButton from './components/common/RulesButton';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
@@ -13,45 +13,41 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 
 // Layouts
 import AdminLayout from './components/admin/AdminLayout';
-import HRLayout from './components/hr/HRLayout';
-import MentorLayout from './components/mentor/MentorLayout';
-import MenteeLayout from './components/mentee/MenteeLayout';
+import SupervisorLayout from './components/supervisor/SupervisorLayout';
+
 
 // Admin Pages
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminUsers from './components/admin/UserManagement';
-import AdminOnboardingManagement from './components/admin/OnboardingManagement';
 import AdminProfile from './components/admin/UserProfile';
-import AdminMentorshipManagement from './components/admin/MentorshipManagement';
-import OnboardingProgramManagement from './components/admin/OnboardingProgramManagement';
-import DepartmentsManagement from './components/admin/ManageDepartments';
-import AdminChatManagement from './components/admin/CommunicationCenter';
-import AdminAssistanceDashboard from './components/admin/AIChatbot';
 import AdminReports from './components/admin/ReportPage';
+import TaskManagement from './components/admin/Tasks';
+import TaskAssignmentManagement from './components/admin/TaskAssignment';
+import ShiftChangeRequestManagement from './components/admin/ShiftChangeRequestManagement';
+import ManageShifts from './components/admin/ManageShifts';
+import RulesManagement from './components/admin/RulesAndRegulations';
 
-// HR Pages
-import HRDashboard from './components/hr/HRDashboard';
-import HRUsers from './components/hr/UserManagement';
-import HROnboardingModule from './components/hr/ManageOnboardings';
-import HRMentorshipManagement from './components/hr/MentorshipManagement';
+// Employee Pages
+import UserProfile from './components/employee/UserProfile';
+import MyTaskAssignmentManagement from './components/employee/TaskAssignments';
+import MyShiftChangeRequestManagement from './components/employee/ShiftChangeRequestManagement';
+import EmployeeDashboard from './components/employee/Dashboard';
 
-// Mentee Pages
-import MenteeDashboard from './components/mentee/MenteeDashboard';
-import MenteeOnboardingDashboard from './components/mentee/MyOnboardings';
-import MenteeMentorshipDashboard from './components/mentee/ManageMentorship';
-import MenteeChatManagement from './components/mentee/My_Communications';
-import UserAssistancePage from './components/mentee/AIChatbot';
-import UserProfile from './components/mentee/UserProfile';
+// Supervisor Pages
+import SupervisorDashboard from './components/supervisor/Dashboard';
+import SupervisorProfile from './components/supervisor/UserProfile';
+import SupervisorTaskManagement from './components/supervisor/Tasks';
+import SupervisorShiftChangeRequestManagement from './components/supervisor/ShiftChangeRequestManagement';
+import SupervisorReport from './components/supervisor/ReportPage';
+import SupervisorTaskAssignments from './components/supervisor/TaskAssignment';
 
-// Mentor Pages
-import MentorManageMentorships from './components/mentor/ManageMentorships';
-import MentorChatManagement from './components/mentor/My_Communications';
-import MentorAssistancePage from './components/mentor/AIChatbot';
-import MentorProfile from './components/mentor/UserProfile';
-import MentorDashboard from './components/mentor/MentorDashboard';
+
+
 
 // Context Providers
 import { AuthProvider } from './context/AuthContext';
+import EmployeeLayout from './components/employee/EmployeeLayout';
+import SupervisorUserManagement from './components/supervisor/UserManagement';
 
 // Custom Toaster Component
 const Toaster = () => {
@@ -87,26 +83,43 @@ const Toaster = () => {
   );
 };
 
-// Component to control floating button visibility
-const FloatingButtonController = () => {
+
+// Updated RulesButtonController component
+const RulesButtonController = () => {
   const location = useLocation();
-  const [showChatButton, setShowChatButton] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
-    // Check if user is authenticated
+    // Get user data from localStorage
     const token = localStorage.getItem('access_token');
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    
     const isAuthenticated = !!token;
+    const currentUserRole = userData.role;
+    setUserRole(currentUserRole);
 
-    // Public pages where we want to show the floating button
-    const publicPages = ['/', '/login', '/register', '/reset-password', '/help'];
+    // Public pages where we want to show the rules button
+    const publicPages = ['/', '/login', '/register', '/reset-password'];
     const isPublicPage = publicPages.includes(location.pathname);
 
-    // Show floating button ONLY on public pages for non-authenticated users
-    setShowChatButton(isPublicPage && !isAuthenticated);
+    // Show rules button for:
+    // 1. Non-authenticated users on public pages
+    // 2. Employee users on all pages
+    // 3. Supervisor users on all pages
+    // 4. NOT for Admin users (they have full interface)
+    
+    if (!isAuthenticated && isPublicPage) {
+      setShowButton(true); // Public users on public pages
+    } else if (isAuthenticated && (currentUserRole === 'employee' || currentUserRole === 'supervisor')) {
+      setShowButton(true); // Employees and supervisors
+    } else {
+      setShowButton(false); // Admin users or authenticated users in wrong place
+    }
 
   }, [location.pathname]);
 
-  return showChatButton ? <FloatingChatButton /> : null;
+  return showButton ? <RulesButton /> : null;
 };
 
 function App() {
@@ -126,7 +139,7 @@ function App() {
         <AuthProvider>
           <Routes>
             {/* ==================== PUBLIC ROUTES ==================== */}
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<LoginPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -139,68 +152,55 @@ function App() {
               </ProtectedRoute>
             }>
               <Route index element={<AdminDashboard />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
-              <Route path="onboarding-management" element={<AdminOnboardingManagement />} />
-              <Route path="mentorship" element={<AdminMentorshipManagement />} />
               <Route path="profile" element={<AdminProfile />} />
-              <Route path="onboarding-programs" element={<OnboardingProgramManagement />} />
-              <Route path="departments" element={<DepartmentsManagement />} />
-              <Route path="communication-center" element={<AdminChatManagement />} />
-              <Route path="chatbot" element={<AdminAssistanceDashboard />} />
+              <Route path="shifts" element={<ManageShifts />} />
               <Route path="reports" element={<AdminReports />} />
+              <Route path="tasks" element={<TaskManagement />} />
+              <Route path="task-assignments" element={<TaskAssignmentManagement />} />
+              <Route path="shift-change-requests" element={<ShiftChangeRequestManagement />} />
+              <Route path="rules-and-regulations" element={<RulesManagement />} />
             </Route>
 
-            {/* ==================== HR ROUTES ==================== */}
-            <Route path="/hr" element={
-              <ProtectedRoute allowedRoles={['hr']}>
-                <HRLayout />
+            {/* ==================== SUPERVISOR ROUTES ==================== */}
+            <Route path="/supervisor" element={
+              <ProtectedRoute allowedRoles={['supervisor']}>
+                <SupervisorLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<HRDashboard />} />
-              <Route path="users" element={<HRUsers />} />
-              <Route path='onboarding-management' element={<HROnboardingModule />} />
-              <Route path='mentorship' element={<HRMentorshipManagement />} />
-              <Route path="profile" element={<AdminProfile />} />
-              <Route path="programs" element={<OnboardingProgramManagement />} />
-              <Route path="departments" element={<DepartmentsManagement />} />
-              <Route path="communication-center" element={<AdminChatManagement />} />
-              <Route path="chatbot" element={<AdminAssistanceDashboard />} />
+              <Route index element={<SupervisorDashboard />} />
+              <Route path="dashboard" element={<SupervisorDashboard />} />
+              <Route path="profile" element={<SupervisorProfile />} />
+              <Route path="tasks" element={<SupervisorTaskManagement />} />
+              <Route path="shift-change-requests" element={<SupervisorShiftChangeRequestManagement />} />
+              <Route path="reports" element={<SupervisorReport />} />
+              <Route path="task-assignments" element={<SupervisorTaskAssignments />} />
+              <Route path="employees" element={<SupervisorUserManagement />} />
+
             </Route>
 
-            {/* ==================== MENTOR ROUTES ==================== */}
-            <Route path="/mentor" element={
-              <ProtectedRoute allowedRoles={['mentor']}>
-                <MentorLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<MentorDashboard />} />
-              <Route path="mentorship" element={<MentorManageMentorships />} />
-              <Route path="communication" element={<MentorChatManagement/>} />
-              <Route path="chatbot" element={<MentorAssistancePage />} />
-              <Route path="profile" element={<MentorProfile />} />
-            </Route>
 
-            {/* ==================== MENTEE ROUTES ==================== */}
-            <Route path="/mentee" element={
-              <ProtectedRoute allowedRoles={['mentee']}>
-                <MenteeLayout />
+            {/* ==================== EMPLOYEE ROUTES ==================== */}
+            <Route path="/employee" element={
+              <ProtectedRoute allowedRoles={['employee']}>
+                <EmployeeLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<MenteeDashboard />} />
-              <Route path="dashboard" element={<MenteeDashboard />} />
-              <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
-              <Route path="mentorship" element={<MenteeMentorshipDashboard />} />
-              <Route path="communication" element={<MenteeChatManagement />} />
-              <Route path="chatbot" element={<UserAssistancePage />} />
+              <Route index element={<EmployeeDashboard />} />
+              <Route path="dashboard" element={<EmployeeDashboard />} />
+              <Route path="my-tasks" element={<EmployeeDashboard />} />
               <Route path="profile" element={<UserProfile />} />
+              <Route path="task-assignments" element={<MyTaskAssignmentManagement />} />
+              <Route path="shift-change-requests" element={<MyShiftChangeRequestManagement />} />
             </Route>
             
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           
-          {/* Floating Chat Button - Only shown for non-authenticated users on public pages */}
-          <FloatingButtonController />
+          {/* Rules Button - Only shown for non-authenticated users on public pages */}
+          <RulesButtonController />
           
           <Toaster />
         </AuthProvider>

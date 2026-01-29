@@ -1257,7 +1257,7 @@ const ActivityLogsTab = ({ logs, filters, setFilters, loadingLogs, selectedLog, 
 };
 
 // Main Component
-export default function EnhancedProfilePage() {
+export default function SupervisorProfilePage() {
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);

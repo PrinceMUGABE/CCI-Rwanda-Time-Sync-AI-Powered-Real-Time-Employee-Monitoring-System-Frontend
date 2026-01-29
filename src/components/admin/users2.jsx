@@ -16,8 +16,6 @@ import {
   Settings, Loader, CheckSquare, XSquare
 } from 'lucide-react';
 import { FaMars, FaVenus, FaTransgender } from 'react-icons/fa';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 
 const BASE_URL = 'http://127.0.0.1:8000';
 
@@ -76,7 +74,6 @@ export default function EnhancedUserManagement() {
 
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [formErrorMessage, setFormErrorMessage] = useState('');
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,6 +151,10 @@ export default function EnhancedUserManagement() {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const data = await response.json();
+
+        // Add this debugging
+        console.log('First user gender from API:', data.users?.[0]?.gender);
+
         return data;
       },
 
@@ -263,6 +264,7 @@ export default function EnhancedUserManagement() {
     loadAllData();
   }, []);
 
+
   const loadAllData = async () => {
     try {
       setLoading(true);
@@ -288,7 +290,6 @@ export default function EnhancedUserManagement() {
     } catch (error) {
       console.error('Error loading data:', error);
       setError('Failed to load data. Please check your connection and try again.');
-      toast.error('Failed to load data. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -311,6 +312,42 @@ export default function EnhancedUserManagement() {
     };
 
     setDashboardStats(stats);
+  };
+
+  const calculateUserPerformance = (logs) => {
+    if (!logs || logs.length === 0) {
+      return {
+        attendanceRate: 0,
+        punctualityScore: 0,
+        totalLogs: 0,
+        onTimeCount: 0,
+        lateCount: 0,
+        earlyCount: 0,
+        veryLateCount: 0,
+        dayOffCount: 0
+      };
+    }
+
+    const loginLogs = logs.filter(log => log.log_type === 'login');
+    const totalLogins = loginLogs.length;
+    const onTimeLogins = loginLogs.filter(log => log.status === 'on_time').length;
+
+    const attendanceRate = totalLogins > 0 ? (onTimeLogins / totalLogins) * 100 : 0;
+    const punctualityScore = totalLogins > 0 ?
+      (loginLogs.filter(log =>
+        log.status === 'on_time' || log.status === 'early'
+      ).length / totalLogins) * 100 : 0;
+
+    return {
+      attendanceRate: Math.round(attendanceRate),
+      punctualityScore: Math.round(punctualityScore),
+      totalLogs: logs.length,
+      onTimeCount: logs.filter(log => log.status === 'on_time').length,
+      lateCount: logs.filter(log => log.status === 'late').length,
+      veryLateCount: logs.filter(log => log.status === 'very_late').length,
+      earlyCount: logs.filter(log => log.status === 'early').length,
+      dayOffCount: logs.filter(log => log.status === 'day_off').length
+    };
   };
 
   // Load detailed user data for specific date (today by default)
@@ -447,67 +484,116 @@ export default function EnhancedUserManagement() {
     }));
   };
 
+  const debugUserData = (user) => {
+    console.log('User data received:', {
+      id: user.id,
+      names: user.names,
+      gender: user.gender,
+      current_shift: user.current_shift,
+      shift_type: typeof user.current_shift,
+      all_data: user
+    });
+  };
+
   const handleViewUser = async (user) => {
+    debugUserData(user);
+
+    // Fetch fresh user data to ensure we have all details
+    let userData = user;
     try {
       const response = await apiService.users.getUser(user.id);
       if (response.user) {
-        const userData = response.user;
-        setSelectedUser(userData);
-
-        // Convert gender from backend format to frontend format
-        const backendGender = userData.gender?.toLowerCase();
-        let frontendGender = 'prefer_not_to_say';
-
-        if (backendGender === 'male' || backendGender === 'm') {
-          frontendGender = 'male';
-        } else if (backendGender === 'female' || backendGender === 'f') {
-          frontendGender = 'female';
-        } else if (backendGender === 'other') {
-          frontendGender = 'other';
-        } else if (backendGender === 'prefer_not_to_say') {
-          frontendGender = 'prefer_not_to_say';
-        }
-
-        // Extract shift ID
-        let shiftId = '';
-        if (userData.current_shift) {
-          if (typeof userData.current_shift === 'object' && userData.current_shift.id) {
-            shiftId = userData.current_shift.id;
-          } else if (typeof userData.current_shift === 'number') {
-            shiftId = userData.current_shift;
-          } else if (typeof userData.current_shift === 'string') {
-            shiftId = userData.current_shift;
-          }
-        }
-
-        // Extract supervisor IDs
-        const supervisorIds = userData.supervisors?.map(s => s.id) || [];
-
-        setUserForm({
-          emp_number: userData.emp_number,
-          names: userData.names,
-          email: userData.email,
-          phone_number: userData.phone_number,
-          role: userData.role,
-          status: userData.status,
-          salary: userData.salary,
-          day_off: userData.day_off || 'none',
-          current_shift: shiftId,
-          supervisors: supervisorIds,
-          gender: frontendGender,
-          send_credentials: false
-        });
-
-        // Clear form errors
-        setFormErrors({});
-        setFormErrorMessage('');
-
-        setShowUserModal(true);
+        userData = response.user;
+        console.log('[EDIT USER] Fresh user data:', userData);
       }
     } catch (error) {
       console.error('Error fetching user details:', error);
-      toast.error('Failed to load user details');
+      // Continue with cached data if fetch fails
     }
+
+    setSelectedUser(userData);
+
+    // Convert gender from backend format to frontend format
+    const backendGender = userData.gender?.toLowerCase();
+    let frontendGender = 'prefer_not_to_say';
+
+    if (backendGender === 'male' || backendGender === 'm') {
+      frontendGender = 'male';
+    } else if (backendGender === 'female' || backendGender === 'f') {
+      frontendGender = 'female';
+    } else if (backendGender === 'other') {
+      frontendGender = 'other';
+    } else if (backendGender === 'prefer_not_to_say') {
+      frontendGender = 'prefer_not_to_say';
+    }
+
+    // Extract shift ID - handle multiple possible formats
+    let shiftId = '';
+    if (userData.current_shift) {
+      if (typeof userData.current_shift === 'object' && userData.current_shift.id) {
+        shiftId = userData.current_shift.id;
+      } else if (typeof userData.current_shift === 'number') {
+        shiftId = userData.current_shift;
+      } else if (typeof userData.current_shift === 'string') {
+        shiftId = userData.current_shift;
+      }
+    }
+
+    console.log('[EDIT USER] Extracted shift ID:', shiftId);
+    console.log('[EDIT USER] From current_shift:', userData.current_shift);
+
+    setUserForm({
+      emp_number: userData.emp_number,
+      names: userData.names,
+      email: userData.email,
+      phone_number: userData.phone_number,
+      role: userData.role,
+      status: userData.status,
+      salary: userData.salary,
+      day_off: userData.day_off || 'none',
+      current_shift: shiftId,
+      supervisors: userData.supervisors?.map(s => s.id) || [],
+      gender: frontendGender,
+      send_credentials: false
+    });
+
+    setShowUserModal(true);
+  };
+  const handleViewPerformance = async (user) => {
+    setSelectedUser(user);
+    try {
+      const performanceResponse = await apiService.performance.getUserPerformance(user.id);
+
+      if (performanceResponse.logs) {
+        const performanceMetrics = calculateUserPerformance(performanceResponse.logs);
+
+        setSelectedPerformance({
+          user,
+          logs: performanceResponse.logs || [],
+          summary: performanceResponse.summary || {},
+          metrics: performanceMetrics
+        });
+
+        setShowPerformanceModal(true);
+      }
+    } catch (error) {
+      console.error('Error loading performance:', error);
+      setError('Failed to load performance data');
+    }
+  };
+
+  const handleSupervision = (user) => {
+    setSelectedUser(user);
+    setUserForm({
+      ...userForm,
+      supervisors: user.supervisors?.map(s => s.id) || []
+    });
+    setShowSupervisionModal(true);
+  };
+
+  const handleDeleteUser = (user) => {
+    setUserToDelete(user);
+    setShowDeleteModal(true);
   };
 
   const handlePasswordReset = (user) => {
@@ -525,14 +611,16 @@ export default function EnhancedUserManagement() {
     try {
       const response = await apiService.users.deleteUser(userToDelete.id);
       if (response.message) {
-        toast.success('User deleted successfully');
+        setSuccessMessage('User deleted successfully');
         setShowDeleteModal(false);
         setUserToDelete(null);
         loadAllData();
+
+        setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Failed to delete user');
+      setError('Failed to delete user');
     }
   };
 
@@ -544,13 +632,15 @@ export default function EnhancedUserManagement() {
       const response = await apiService.users.resetPassword(passwordResetForm.userId);
 
       if (response.message) {
-        toast.success('Password reset successfully. User has been notified via email.');
+        setSuccessMessage('Password reset successfully. User has been notified via email.');
         setShowPasswordResetModal(false);
         setPasswordResetForm({ userId: null, sendEmail: true });
+
+        setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Error resetting password:', error);
-      toast.error('Failed to reset password');
+      setError('Failed to reset password');
     } finally {
       setSubmitting(false);
     }
@@ -570,16 +660,6 @@ export default function EnhancedUserManagement() {
       errors.email = 'Invalid email format';
     }
 
-    // Role-specific validations
-    if (userForm.role === 'employee' && userForm.supervisors.length === 0) {
-      errors.supervisors = 'At least one supervisor is required for employees';
-    }
-
-    // Salary validation
-    if (userForm.salary && parseFloat(userForm.salary) < 0) {
-      errors.salary = 'Salary cannot be negative';
-    }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -589,12 +669,11 @@ export default function EnhancedUserManagement() {
     if (!validateUserForm()) {
       return;
     }
-
     setSubmitting(true);
-    setFormErrorMessage('');
     setFormErrors({});
 
     try {
+      let response;
       const userData = {
         emp_number: userForm.emp_number,
         names: userForm.names,
@@ -605,12 +684,11 @@ export default function EnhancedUserManagement() {
         salary: userForm.salary,
         day_off: userForm.day_off,
         current_shift: userForm.current_shift,
-        supervisor_ids: userForm.supervisors,
+        supervisors: userForm.supervisors,
         gender: userForm.gender,
         send_credentials: userForm.send_credentials
       };
 
-      let response;
       if (selectedUser) {
         response = await apiService.users.updateUser(selectedUser.id, userData);
       } else {
@@ -618,65 +696,18 @@ export default function EnhancedUserManagement() {
       }
 
       if (response.message || response.user) {
-        toast.success(`User ${selectedUser ? 'updated' : 'created'} successfully`);
+        setSuccessMessage(`User ${selectedUser ? 'updated' : 'created'} successfully`);
         setShowUserModal(false);
-        resetUserForm();
         loadAllData();
-      } else if (response.error || response.errors) {
-        // Handle backend validation errors
-        const errorMsg = response.error ||
-          Object.values(response.errors || {}).join(', ');
-        setFormErrorMessage(errorMsg);
+
+        setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (error) {
       console.error('Error saving user:', error);
-      setFormErrorMessage('Failed to save user. Please try again.');
+      setError('Failed to save user');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const resetUserForm = () => {
-    setUserForm({
-      emp_number: '',
-      names: '',
-      email: '',
-      phone_number: '',
-      role: 'employee',
-      status: 'active',
-      salary: '',
-      day_off: 'none',
-      current_shift: '',
-      supervisors: [],
-      gender: 'prefer_not_to_say',
-      send_credentials: true
-    });
-    setSelectedUser(null);
-    setFormErrors({});
-    setFormErrorMessage('');
-  };
-
-  const handleAddNewUser = () => {
-    resetUserForm();
-    setShowUserModal(true);
-  };
-
-  const handleSupervisorSelection = (supervisorId) => {
-    setUserForm(prev => {
-      const isSelected = prev.supervisors.includes(supervisorId);
-      const updatedSupervisors = isSelected
-        ? prev.supervisors.filter(id => id !== supervisorId)
-        : [...prev.supervisors, supervisorId];
-
-      // Clear supervisor error if at least one is selected
-      if (updatedSupervisors.length > 0) {
-        const newErrors = { ...formErrors };
-        delete newErrors.supervisors;
-        setFormErrors(newErrors);
-      }
-
-      return { ...prev, supervisors: updatedSupervisors };
-    });
   };
 
   // Custom components
@@ -734,6 +765,7 @@ export default function EnhancedUserManagement() {
   };
 
   const GenderBadge = ({ gender }) => {
+    // Handle null/undefined/empty
     if (!gender || gender === '' || gender === 'null' || gender === 'undefined') {
       const config = GENDER_CONFIG['prefer_not_to_say'];
       const Icon = config.icon;
@@ -745,19 +777,29 @@ export default function EnhancedUserManagement() {
       );
     }
 
+    // Normalize: convert to lowercase and trim
     const normalizedGender = String(gender).toLowerCase().trim();
+
+    // EXPANDED genderMap to handle both backend formats
     const genderMap = {
+      // Raw values (from database)
       'male': 'male',
       'female': 'female',
       'other': 'other',
       'prefer_not_to_say': 'prefer_not_to_say',
-      'male (m)': 'male',
-      'female (f)': 'female',
-      'other (o)': 'other',
-      'prefer not to say': 'prefer_not_to_say',
+
+      // Display values (from get_gender_display())
+      'male (m)': 'male',           // From your choices
+      'female (f)': 'female',       // From your choices
+      'other (o)': 'other',         // From your choices
+      'prefer not to say': 'prefer_not_to_say',  // Django's display format
+
+      // Short forms
       'm': 'male',
       'f': 'female',
       'o': 'other',
+
+      // Other variations
       'man': 'male',
       'woman': 'female',
       'non-binary': 'other',
@@ -768,6 +810,7 @@ export default function EnhancedUserManagement() {
     const genderKey = genderMap[normalizedGender];
 
     if (!genderKey) {
+      console.warn('⚠️ Unknown gender format:', gender, 'normalized:', normalizedGender);
       const config = GENDER_CONFIG['prefer_not_to_say'];
       const Icon = config.icon;
       return (
@@ -814,6 +857,29 @@ export default function EnhancedUserManagement() {
     );
   };
 
+  // Calculate logs summary for detailed view
+  const calculateLogsSummary = (logs) => {
+    if (!logs || logs.length === 0) {
+      return {
+        total: 0,
+        onTime: 0,
+        late: 0,
+        veryLate: 0,
+        early: 0,
+        dayOff: 0
+      };
+    }
+
+    return {
+      total: logs.length,
+      onTime: logs.filter(log => log.status === 'on_time').length,
+      late: logs.filter(log => log.status === 'late').length,
+      veryLate: logs.filter(log => log.status === 'very_late').length,
+      early: logs.filter(log => log.status === 'early').length,
+      dayOff: logs.filter(log => log.status === 'day_off').length
+    };
+  };
+
   // Main render
   if (loading && users.length === 0) {
     return (
@@ -828,8 +894,6 @@ export default function EnhancedUserManagement() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4 md:p-6">
-      <ToastContainer position="top-right" autoClose={5000} />
-
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -848,7 +912,24 @@ export default function EnhancedUserManagement() {
               Refresh
             </button>
             <button
-              onClick={handleAddNewUser}
+              onClick={() => {
+                setSelectedUser(null);
+                setUserForm({
+                  emp_number: '',
+                  names: '',
+                  email: '',
+                  phone_number: '',
+                  role: 'employee',
+                  status: 'active',
+                  salary: '',
+                  day_off: 'none',
+                  current_shift: '',
+                  supervisors: [],
+                  gender: 'prefer_not_to_say',
+                  send_credentials: true
+                });
+                setShowUserModal(true);
+              }}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all"
             >
               <UserPlus className="mr-2 h-4 w-4" />
@@ -857,6 +938,41 @@ export default function EnhancedUserManagement() {
           </div>
         </div>
       </div>
+
+      {/* Alerts */}
+      {error && (
+        <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+          <div className="flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="ml-3">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
+          <div className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <div className="ml-3">
+              <p className="text-sm font-medium text-green-800">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setSuccessMessage('')}
+              className="ml-auto text-green-500 hover:text-green-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Dashboard Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -1069,10 +1185,7 @@ export default function EnhancedUserManagement() {
                                 <Key className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  setUserToDelete(user);
-                                  setShowDeleteModal(true);
-                                }}
+                                onClick={() => handleDeleteUser(user)}
                                 className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
                                 title="Delete User"
                               >
@@ -1142,7 +1255,6 @@ export default function EnhancedUserManagement() {
           </div>
         </div>
       </div>
-
 
       {/* DETAILED USER MODAL - Comprehensive Employee Information */}
       {showDetailModal && detailedUserData && (
@@ -1546,355 +1658,6 @@ export default function EnhancedUserManagement() {
         </div>
       )}
 
-      {/* USER FORM MODAL */}
-      {showUserModal && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {selectedUser ? 'Edit User' : 'Add New User'}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowUserModal(false);
-                    resetUserForm();
-                  }}
-                  className="text-gray-400 hover:text-gray-500 p-1 rounded hover:bg-gray-100"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleUserFormSubmit}>
-              <div className="px-6 py-4 max-h-[calc(100vh-250px)] overflow-y-auto">
-                {/* Form Error Message */}
-                {formErrorMessage && (
-                  <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-                    <div className="flex items-start">
-                      <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-red-800">{formErrorMessage}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Basic Information */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700">Basic Information</h4>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Employee Number *
-                      </label>
-                      <input
-                        type="text"
-                        value={userForm.emp_number}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, emp_number: e.target.value });
-                          if (formErrors.emp_number) {
-                            setFormErrors({ ...formErrors, emp_number: undefined });
-                          }
-                        }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm ${formErrors.emp_number ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        required
-                        disabled={!!selectedUser}
-                      />
-                      {formErrors.emp_number && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.emp_number}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={userForm.names}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, names: e.target.value });
-                          if (formErrors.names) {
-                            setFormErrors({ ...formErrors, names: undefined });
-                          }
-                        }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm ${formErrors.names ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        required
-                      />
-                      {formErrors.names && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.names}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email *
-                      </label>
-                      <input
-                        type="email"
-                        value={userForm.email}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, email: e.target.value });
-                          if (formErrors.email) {
-                            setFormErrors({ ...formErrors, email: undefined });
-                          }
-                        }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm ${formErrors.email ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        required
-                      />
-                      {formErrors.email && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Contact and Role */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700">Contact & Role</h4>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        value={userForm.phone_number}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, phone_number: e.target.value });
-                          if (formErrors.phone_number) {
-                            setFormErrors({ ...formErrors, phone_number: undefined });
-                          }
-                        }}
-                        placeholder="+250XXXXXXXXX"
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm ${formErrors.phone_number ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        required
-                      />
-                      {formErrors.phone_number && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.phone_number}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Gender *
-                      </label>
-                      <select
-                        value={userForm.gender}
-                        onChange={(e) => setUserForm({ ...userForm, gender: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                      >
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                        <option value="prefer_not_to_say">Prefer not to say</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Role *
-                      </label>
-                      <select
-                        value={userForm.role}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, role: e.target.value });
-                          // Clear supervisors if role changes to non-employee
-                          if (e.target.value !== 'employee') {
-                            setUserForm(prev => ({ ...prev, supervisors: [] }));
-                          }
-                        }}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                      >
-                        <option value="employee">Employee</option>
-                        <option value="supervisor">Supervisor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Status and Additional Information */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700">Status & Additional Info</h4>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status *
-                      </label>
-                      <select
-                        value={userForm.status}
-                        onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="suspended">Suspended</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Salary (frw)
-                      </label>
-                      <input
-                        type="number"
-                        value={userForm.salary}
-                        onChange={(e) => {
-                          setUserForm({ ...userForm, salary: e.target.value });
-                          if (formErrors.salary) {
-                            setFormErrors({ ...formErrors, salary: undefined });
-                          }
-                        }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm ${formErrors.salary ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                      />
-                      {formErrors.salary && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.salary}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Day Off
-                      </label>
-                      <select
-                        value={userForm.day_off}
-                        onChange={(e) => setUserForm({ ...userForm, day_off: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                      >
-                        <option value="none">No Day Off</option>
-                        <option value="monday">Monday</option>
-                        <option value="tuesday">Tuesday</option>
-                        <option value="wednesday">Wednesday</option>
-                        <option value="thursday">Thursday</option>
-                        <option value="friday">Friday</option>
-                        <option value="saturday">Saturday</option>
-                        <option value="sunday">Sunday</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Shift Assignment & Supervisors */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700">Shift Assignment</h4>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Current Shift
-                      </label>
-                      <select
-                        value={userForm.current_shift}
-                        onChange={(e) => setUserForm({ ...userForm, current_shift: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                      >
-                        <option value="">Not Assigned</option>
-                        {shifts.map(shift => (
-                          <option key={shift.id} value={shift.id}>
-                            {shift.name} ({shift.start_at} - {shift.end_at})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Supervisors Selection - Only for Employees */}
-                    {userForm.role === 'employee' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Supervisors *
-                          <span className="text-xs font-normal text-gray-500 ml-1">
-                            (Select at least one)
-                          </span>
-                        </label>
-                        <div className={`border rounded-lg p-3 max-h-48 overflow-y-auto ${formErrors.supervisors ? 'border-red-500' : 'border-gray-300'
-                          }`}>
-                          {supervisors.length === 0 ? (
-                            <p className="text-sm text-gray-500">No supervisors available</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {supervisors.map((supervisor) => (
-                                <div key={supervisor.id} className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    id={`supervisor-${supervisor.id}`}
-                                    checked={userForm.supervisors.includes(supervisor.id)}
-                                    onChange={() => handleSupervisorSelection(supervisor.id)}
-                                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                  />
-                                  <label
-                                    htmlFor={`supervisor-${supervisor.id}`}
-                                    className="ml-3 flex-1"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <UserAvatar user={supervisor} size="sm" />
-                                      <div>
-                                        <p className="text-sm font-medium text-gray-900">
-                                          {supervisor.names}
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                          {supervisor.emp_number}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {formErrors.supervisors && (
-                          <p className="mt-1 text-sm text-red-600">{formErrors.supervisors}</p>
-                        )}
-                        <div className="mt-2 text-xs text-gray-500">
-                          Selected: {userForm.supervisors.length} supervisor(s)
-                        </div>
-                      </div>
-                    )}
-
-                    {!selectedUser && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="send_credentials"
-                          checked={userForm.send_credentials}
-                          onChange={(e) => setUserForm({ ...userForm, send_credentials: e.target.checked })}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label htmlFor="send_credentials" className="text-sm text-gray-700">
-                          Send login credentials via email
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowUserModal(false);
-                    resetUserForm();
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg disabled:opacity-50 transition-all"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader className="animate-spin mr-2 h-4 w-4 inline" />
-                      Saving...
-                    </>
-                  ) : (
-                    selectedUser ? 'Update User' : 'Create User'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* PASSWORD RESET MODAL */}
       {showPasswordResetModal && selectedUser && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
@@ -1965,6 +1728,225 @@ export default function EnhancedUserManagement() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER FORM MODAL */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedUser ? 'Edit User' : 'Add New User'}
+                </h3>
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className="text-gray-400 hover:text-gray-500 p-1 rounded hover:bg-gray-100"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleUserFormSubmit}>
+              <div className="px-6 py-4 max-h-[calc(100vh-250px)] overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-700">Basic Information</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Employee Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={userForm.emp_number}
+                        onChange={(e) => setUserForm({ ...userForm, emp_number: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                        required
+                        disabled={!!selectedUser}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={userForm.names}
+                        onChange={(e) => setUserForm({ ...userForm, names: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={userForm.email}
+                        onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Contact and Role */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-700">Contact & Role</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number *
+                      </label>
+                      <input
+                        type="tel"
+                        value={userForm.phone_number}
+                        onChange={(e) => setUserForm({ ...userForm, phone_number: e.target.value })}
+                        placeholder="+250XXXXXXXXX"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Gender *
+                      </label>
+                      <select
+                        value={userForm.gender}
+                        onChange={(e) => setUserForm({ ...userForm, gender: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                        <option value="prefer_not_to_say">Prefer not to say</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Role *
+                      </label>
+                      <select
+                        value={userForm.role}
+                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="supervisor">Supervisor</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Status and Additional Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-700">Status & Additional Info</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status *
+                      </label>
+                      <select
+                        value={userForm.status}
+                        onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Salary (frw)
+                      </label>
+                      <input
+                        type="number"
+                        value={userForm.salary}
+                        onChange={(e) => setUserForm({ ...userForm, salary: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Day Off
+                      </label>
+                      <select
+                        value={userForm.day_off}
+                        onChange={(e) => setUserForm({ ...userForm, day_off: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="none">No Day Off</option>
+                        <option value="monday">Monday</option>
+                        <option value="tuesday">Tuesday</option>
+                        <option value="wednesday">Wednesday</option>
+                        <option value="thursday">Thursday</option>
+                        <option value="friday">Friday</option>
+                        <option value="saturday">Saturday</option>
+                        <option value="sunday">Sunday</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Shift Assignment */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-700">Shift Assignment</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Shift
+                      </label>
+                      <select
+                        value={userForm.current_shift}
+                        onChange={(e) => setUserForm({ ...userForm, current_shift: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="">Not Assigned</option>
+                        {shifts.map(shift => (
+                          <option key={shift.id} value={shift.id}>
+                            {shift.name} ({shift.start_at} - {shift.end_at})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {!selectedUser && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="send_credentials"
+                          checked={userForm.send_credentials}
+                          onChange={(e) => setUserForm({ ...userForm, send_credentials: e.target.checked })}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor="send_credentials" className="text-sm text-gray-700">
+                          Send login credentials via email
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUserModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg disabled:opacity-50 transition-all"
+                >
+                  {submitting ? 'Saving...' : (selectedUser ? 'Update User' : 'Create User')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

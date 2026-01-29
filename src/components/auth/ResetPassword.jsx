@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Award, 
-  Mail, 
-  CheckCircle, 
-  ArrowLeft, 
-  Key, 
+import {
+  Award,
+  Mail,
+  CheckCircle,
+  ArrowLeft,
+  Key,
   Clock,
   RefreshCw
 } from 'lucide-react';
@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ work_mail_address: workMail }),
+        body: JSON.stringify({ email: workMail }),
       });
 
       const data = await response.json();
@@ -96,9 +96,9 @@ export default function ResetPasswordPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          work_mail_address: workMail, 
-          otp 
+        body: JSON.stringify({
+          email: workMail,
+          otp
         }),
       });
 
@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ work_mail_address: workMail }),
+        body: JSON.stringify({ email: workMail }),
       });
 
       const data = await response.json();
@@ -178,11 +178,11 @@ export default function ResetPasswordPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          work_mail_address: workMail,
+        body: JSON.stringify({
+          email: workMail,
           otp,
           new_password: newPassword,
-          confirm_password: confirmPassword
+          new_password_confirm: confirmPassword
         }),
       });
 
@@ -215,7 +215,7 @@ export default function ResetPasswordPage() {
                 <input
                   id="workMail"
                   type="text"
-                  placeholder="Enter your work email address"
+                  placeholder="Enter emil email address"
                   value={workMail}
                   onChange={(e) => setWorkMail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
@@ -227,8 +227,8 @@ export default function ResetPasswordPage() {
               </p>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading}
             >
@@ -285,8 +285,8 @@ export default function ResetPasswordPage() {
                 </p>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading || !otp || otp.length !== 6}
               >
@@ -349,8 +349,8 @@ export default function ResetPasswordPage() {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !newPassword || !confirmPassword}
             >
@@ -399,14 +399,16 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
+        {/* <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 mb-2">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center">
               <Award className="w-7 h-7 text-white" />
             </div>
             <span className="text-2xl font-bold text-blue-900">MentorHub</span>
           </Link>
-        </div>
+        </div> */}
+
+
 
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
@@ -419,10 +421,10 @@ export default function ResetPasswordPage() {
                     <div className="flex flex-col items-center">
                       <div className={`
                         w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                        ${step === s ? 'bg-blue-600 text-white' : 
-                          ['verify-otp', 'reset-password'].includes(step) && ['request-otp', 'verify-otp'].includes(s) ? 
-                          'bg-green-100 text-green-600' : 
-                          'bg-gray-100 text-gray-400'}
+                        ${step === s ? 'bg-blue-600 text-white' :
+                          ['verify-otp', 'reset-password'].includes(step) && ['request-otp', 'verify-otp'].includes(s) ?
+                            'bg-green-100 text-green-600' :
+                            'bg-gray-100 text-gray-400'}
                       `}>
                         {index + 1}
                       </div>

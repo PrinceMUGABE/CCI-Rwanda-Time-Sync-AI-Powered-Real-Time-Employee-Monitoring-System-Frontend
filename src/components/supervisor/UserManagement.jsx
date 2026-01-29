@@ -21,7 +21,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const BASE_URL = 'http://127.0.0.1:8000';
 
-export default function EnhancedUserManagement() {
+export default function SupervisorUserManagement() {
   // Main states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -150,7 +150,7 @@ export default function EnhancedUserManagement() {
   const apiService = {
     users: {
       getUsers: async () => {
-        const response = await fetch(`${BASE_URL}/users/`, {
+        const response = await fetch(`${BASE_URL}/my-supervised-employees/`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const data = await response.json();
@@ -847,13 +847,13 @@ export default function EnhancedUserManagement() {
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </button>
-            <button
+            {/* <button
               onClick={handleAddNewUser}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all"
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Add User
-            </button>
+            </button> */}
           </div>
         </div>
       </div>
@@ -1054,30 +1054,7 @@ export default function EnhancedUserManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
-                              <button
-                                onClick={() => handleViewUser(user)}
-                                className="p-1.5 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
-                                title="Edit User"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handlePasswordReset(user)}
-                                className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
-                                title="Reset Password"
-                              >
-                                <Key className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setUserToDelete(user);
-                                  setShowDeleteModal(true);
-                                }}
-                                className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
-                                title="Delete User"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+
                             </div>
                           </td>
                         </tr>
@@ -1527,13 +1504,13 @@ export default function EnhancedUserManagement() {
                 Reset Password
               </button>
               <div className="flex gap-3">
-                <button
+                {/* <button
                   onClick={() => handleViewUser(detailedUserData)}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit User
-                </button>
+                </button> */}
                 <button
                   onClick={() => setShowDetailModal(false)}
                   className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md"

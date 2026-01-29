@@ -33,297 +33,140 @@ import {
 } from "lucide-react";
 import { toast } from 'react-hot-toast';
 
-export default function AdminLayout() {
+export default function EmployeeLayout() {
   const { user, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    
+    const dropdownRef = useRef(null);
+    const notificationRef = useRef(null);
   
-  const dropdownRef = useRef(null);
-  const notificationRef = useRef(null);
-
-  // Interval for checking new notifications
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        if (!token || !user) return;
-
-        const response = await fetch('http://127.0.0.1:8000/notification/my-notifications/', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Check for new notifications
-          if (data.notifications && data.notifications.length > 0) {
-            const previousNotifications = JSON.parse(localStorage.getItem('last_notifications') || '[]');
-            const previousIds = previousNotifications.map(n => n.id);
+    // Interval for checking new notifications
+    useEffect(() => {
+      const fetchNotifications = async () => {
+        try {
+          const token = localStorage.getItem('access_token');
+          if (!token || !user) return;
+  
+          const response = await fetch('http://127.0.0.1:8000/notification/my-notifications/', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+  
+          if (response.ok) {
+            const data = await response.json();
             
-            // Find new notifications
-            const newNotifications = data.notifications.filter(
-              notification => !previousIds.includes(notification.id) && !notification.is_read
-            );
-            
-            // Show toast for new notifications
-            newNotifications.forEach(notification => {
-              toast(
-                (t) => (
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                      {getNotificationIcon(notification)}
-                    </div>
-                    <div className="ml-3 w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {notification.title}
-                      </p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {notification.message}
-                      </p>
-                      <div className="mt-2 flex">
-                        <button
-                          type="button"
-                          className="rounded-md bg-white text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          onClick={() => {
-                            toast.dismiss(t.id);
-                            setIsNotificationOpen(true);
-                          }}
-                        >
-                          View
-                        </button>
-                        <button
-                          type="button"
-                          className="ml-3 rounded-md bg-white text-sm font-medium text-gray-700 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          onClick={() => toast.dismiss(t.id)}
-                        >
-                          Dismiss
-                        </button>
+            // Check for new notifications
+            if (data.notifications && data.notifications.length > 0) {
+              const previousNotifications = JSON.parse(localStorage.getItem('last_notifications') || '[]');
+              const previousIds = previousNotifications.map(n => n.id);
+              
+              // Find new notifications
+              const newNotifications = data.notifications.filter(
+                notification => !previousIds.includes(notification.id) && !notification.is_read
+              );
+              
+              // Show toast for new notifications
+              newNotifications.forEach(notification => {
+                toast(
+                  (t) => (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        {getNotificationIcon(notification)}
+                      </div>
+                      <div className="ml-3 w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {notification.title}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {notification.message}
+                        </p>
+                        <div className="mt-2 flex">
+                          <button
+                            type="button"
+                            className="rounded-md bg-white text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            onClick={() => {
+                              toast.dismiss(t.id);
+                              setIsNotificationOpen(true);
+                            }}
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            className="ml-3 rounded-md bg-white text-sm font-medium text-gray-700 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            onClick={() => toast.dismiss(t.id)}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ),
-                {
-                  duration: 8000,
-                  position: 'top-right',
-                }
-              );
-            });
+                  ),
+                  {
+                    duration: 8000,
+                    position: 'top-right',
+                  }
+                );
+              });
+              
+              // Store current notifications for next comparison
+              localStorage.setItem('last_notifications', JSON.stringify(data.notifications));
+            }
             
-            // Store current notifications for next comparison
-            localStorage.setItem('last_notifications', JSON.stringify(data.notifications));
+            setNotifications(data.notifications || []);
+            setUnreadCount(data.unread_count || 0);
           }
-          
-          setNotifications(data.notifications || []);
-          setUnreadCount(data.unread_count || 0);
+        } catch (error) {
+          console.error('Error fetching notifications:', error);
+        } finally {
+          setIsLoadingNotifications(false);
         }
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
-      } finally {
-        setIsLoadingNotifications(false);
-      }
-    };
-
-    // Fetch immediately on mount
-    fetchNotifications();
-    
-    // Set up interval for checking new notifications every minute
-    const intervalId = setInterval(fetchNotifications, 60000); // 1 minute
-    
-    // Cleanup interval on unmount
-    return () => clearInterval(intervalId);
-  }, [user]);
+      };
+  
+      // Fetch immediately on mount
+      fetchNotifications();
+      
+      // Set up interval for checking new notifications every minute
+      const intervalId = setInterval(fetchNotifications, 60000); // 1 minute
+      
+      // Cleanup interval on unmount
+      return () => clearInterval(intervalId);
+    }, [user]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setIsNotificationOpen(false);
-      }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isDropdownOpen]);
 
   const handleLogout = () => {
     logout();
   };
 
-  const fetchNotifications = async () => {
-    setIsLoadingNotifications(true);
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-
-      const response = await fetch('http://127.0.0.1:8000/notification/my-notifications/', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unread_count || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      toast.error('Failed to load notifications');
-    } finally {
-      setIsLoadingNotifications(false);
-    }
-  };
-
-  const markNotificationAsRead = async (notificationId) => {
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-
-      const response = await fetch(`http://127.0.0.1:8000/notification/${notificationId}/mark-read/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        // Update local state
-        setNotifications(prevNotifications =>
-          prevNotifications.map(notification =>
-            notification.id === notificationId
-              ? { ...notification, is_read: true }
-              : notification
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-        toast.success('Notification marked as read');
-      }
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      toast.error('Failed to mark notification as read');
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-
-      const response = await fetch('http://127.0.0.1:8000/notification/mark-all-read/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        // Update all notifications to read
-        setNotifications(prevNotifications =>
-          prevNotifications.map(notification => ({
-            ...notification,
-            is_read: true
-          }))
-        );
-        setUnreadCount(0);
-        toast.success('All notifications marked as read');
-      }
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-      toast.error('Failed to mark all notifications as read');
-    }
-  };
-
-  const deleteNotification = async (notificationId) => {
-    try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-
-      const response = await fetch(`http://127.0.0.1:8000/notification/${notificationId}/delete/`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        setNotifications(prevNotifications =>
-          prevNotifications.filter(notification => notification.id !== notificationId)
-        );
-        toast.success('Notification deleted');
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      toast.error('Failed to delete notification');
-    }
-  };
-
-  const getNotificationIcon = (notification) => {
-    switch (notification.notification_type) {
-      case 'break_start_reminder':
-      case 'break_end_reminder':
-        return <Clock className="h-5 w-5 text-blue-500" />;
-      case 'break_missed':
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
-      case 'break_extended':
-        return <Clock className="h-5 w-5 text-orange-500" />;
-      case 'shift_start_reminder':
-      case 'shift_end_reminder':
-        return <Clock className="h-5 w-5 text-purple-500" />;
-      case 'login_reminder':
-      case 'logout_reminder':
-        return <Clock className="h-5 w-5 text-green-500" />;
-      case 'system_alert':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
-      case 'performance_alert':
-        return <Star className="h-5 w-5 text-indigo-500" />;
-      default:
-        return <Bell className="h-5 w-5 text-gray-500" />;
-    }
-  };
-
-  const getNotificationPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'high':
-        return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
   const navigationItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "User Management", path: "/admin/users" },
-    { icon: Users, label: "Shifts & Breaks", path: "/admin/shifts" },
-    { icon: BookOpen, label: "Tasks", path: "/admin/tasks" },
-    { icon: GraduationCap, label: "Task Assignments", path: "/admin/task-assignments" },
-    { icon: Users, label: "Shift Change Requests", path: "/admin/shift-change-requests" },
-    { icon: Users, label: "Rules Management", path: "/admin/rules-and-regulations" },
-    { icon: FileText, label: "Reports", path: "/admin/reports" },
+    { icon: LayoutDashboard, label: "Performance", path: "/employee/dashboard" },
+    { icon: GraduationCap, label: "Assigned Tasks", path: "/employee/task-assignments" },
+    { icon: UserCog, label: "Shift Change Requests", path: "/employee/shift-change-requests" },
   ];
 
-  const quickActions = [
-    { label: 'Shifts & Breaks', icon: <Plus className="w-4 h-4" />, onClick: () => navigate('/admin/shifts?action=create-shift') },
-    { label: 'Manage Users', icon: <Users className="w-4 h-4" />, onClick: () => navigate('/admin/users') },
-    { label: 'View Reports', icon: <FileText className="w-4 h-4" />, onClick: () => navigate('/admin/reports') },
-  ];
 
   // Filter unread notifications
   const unreadNotifications = notifications.filter(n => !n.is_read);
@@ -341,33 +184,20 @@ export default function AdminLayout() {
             >
               {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link to="/admin" className="flex items-center gap-2">
+            <Link to="/employee" className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
                 <Shield className="w-5 h-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <span className="text-xl font-semibold text-gray-900">Admin Portal</span>
+                <span className="text-xl font-semibold text-gray-900">Employee Portal</span>
                 <div className="flex items-center gap-2 text-xs text-blue-600">
                   <Shield className="w-3 h-3" />
-                  <span>Administrator</span>
+                  <span>Employee</span>
                 </div>
               </div>
             </Link>
           </div>
 
-          {/* Quick Actions */}
-          <div className="hidden md:flex items-center gap-2">
-            {quickActions.map((action, index) => (
-              <button
-                key={index}
-                onClick={action.onClick}
-                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                {action.icon}
-                <span className="hidden lg:inline">{action.label}</span>
-              </button>
-            ))}
-          </div>
 
           <div className="flex items-center gap-3">
             {/* Notification Bell */}
@@ -533,7 +363,7 @@ export default function AdminLayout() {
                     <button
                       onClick={() => {
                         setIsNotificationOpen(false);
-                        navigate('/admin/notifications');
+                        navigate('/employee/notifications');
                       }}
                       className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-800"
                     >
@@ -560,12 +390,12 @@ export default function AdminLayout() {
                 ) : (
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center ring-2 ring-blue-100">
                     <span className="text-white font-semibold text-sm">
-                      {user?.full_name?.charAt(0) || user?.name?.charAt(0) || 'A'}
+                      {user?.names?.charAt(0) || user?.name?.charAt(0) || 'A'}
                     </span>
                   </div>
                 )}
                 <div className="hidden lg:block text-left">
-                  <div className="text-sm font-medium">{user?.full_name || user?.name || 'Admin'}</div>
+                  <div className="text-sm font-medium">{user?.names || user?.name || 'Employee'}</div>
                   <div className="text-xs text-gray-500">{user?.work_mail_address || user?.email || ''}</div>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
@@ -590,11 +420,11 @@ export default function AdminLayout() {
                         </div>
                       )}
                       <div>
-                        <div className="text-sm font-medium">{user?.full_name || user?.name || 'Admin'}</div>
+                        <div className="text-sm font-medium">{user?.names || user?.name || 'Employee'}</div>
                         <div className="text-xs text-gray-500">{user?.work_mail_address || user?.email || ''}</div>
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full text-xs bg-blue-100 text-blue-700">
                           <Shield className="w-3 h-3" />
-                          Administrator
+                          Employee
                         </div>
                       </div>
                     </div>
@@ -604,7 +434,7 @@ export default function AdminLayout() {
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
-                        navigate("/admin/profile");
+                        navigate("/employee/profile");
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 rounded"
                     >
@@ -614,7 +444,7 @@ export default function AdminLayout() {
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
-                        navigate("/admin/notifications");
+                        navigate("/employee/notifications");
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 rounded"
                     >
@@ -626,16 +456,7 @@ export default function AdminLayout() {
                         </span>
                       )}
                     </button>
-                    <button
-                      onClick={() => {
-                        setIsDropdownOpen(false);
-                        navigate("/admin/chatbot");
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 rounded"
-                    >
-                      <HelpCircle className="w-4 h-4" />
-                      Help & Support
-                    </button>
+
                   </div>
 
                   <div className="border-t my-1"></div>
@@ -693,13 +514,13 @@ export default function AdminLayout() {
             </nav>
           </div>
 
-          {/* Admin Access (bottom – always pinned) */}
+          {/* Employee Access (bottom – always pinned) */}
           <div className="px-4 mb-4">
             <div className="bg-gradient-to-br from-blue-50 to-pink-50 rounded-lg p-4 border border-blue-100">
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-4 h-4 text-blue-700" />
                 <h3 className="text-sm font-medium text-blue-900">
-                  Admin Access
+                  Employee Access
                 </h3>
               </div>
               <p className="text-xs text-blue-700">

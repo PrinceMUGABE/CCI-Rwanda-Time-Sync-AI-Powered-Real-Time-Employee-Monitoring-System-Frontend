@@ -7,22 +7,27 @@ import {
   Users,
   BookOpen,
   Bot,
+  BarChart3,
   UserCog,
   MessageSquare,
   GraduationCap,
+  Target,
   FileText,
   Bell,
+  Settings,
   LogOut,
   Menu,
   X,
   ChevronDown,
-  Briefcase,
+  Shield,
+  Globe,
   HelpCircle,
   Plus,
   Search,
+  Star,
 } from "lucide-react";
 
-export default function HRLayout() {
+export default function SupervisorLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -51,15 +56,13 @@ export default function HRLayout() {
   };
 
   const navigationItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/hr" },
-    { icon: Users, label: "Users", path: "/hr/users" },
-    { icon: GraduationCap, label: "Onboarding Management", path: "/hr/onboarding-management" },
-    { icon: Users, label: "Mentorship", path: "/hr/mentorship" },
-    { icon: MessageSquare, label: "Communication", path: "/hr/communication-center" },
-    { icon: Bot, label: "AI Assistant", path: "/hr/chatbot" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/supervisor" },
+    { icon: Users, label: "Empoyees", path: "/supervisor/employees" },
+    { icon: Bot, label: "Report", path: "/supervisor/reports" },
+    { icon: FileText, label: "Task Assignments", path: "/supervisor/task-assignments" },
+    { icon: Target, label: "Shift Change Requests", path: "/supervisor/shift-change-requests" },
+    
   ];
-
-
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -73,21 +76,19 @@ export default function HRLayout() {
             >
               {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link to="/hr" className="flex items-center gap-2">
+            <Link to="/supervisor" className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
-                <Briefcase className="w-5 h-5 text-white" />
+                <GraduationCap className="w-5 h-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <span className="text-xl font-semibold text-gray-900">HR Portal</span>
+                <span className="text-xl font-semibold text-gray-900">My Portal</span>
                 <div className="flex items-center gap-2 text-xs text-blue-600">
-                  <Briefcase className="w-3 h-3" />
-                  <span>Human Resources</span>
+                  <GraduationCap className="w-3 h-3" />
+                  <span>Supervisor</span>
                 </div>
               </div>
             </Link>
           </div>
-
-
 
           <div className="flex items-center gap-3">
             <div className="hidden md:block relative">
@@ -111,12 +112,12 @@ export default function HRLayout() {
               >
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
                   <span className="text-white font-semibold text-sm">
-                    {user?.full_name?.charAt(0) || user?.name?.charAt(0) || 'H'}
+                    {user?.full_name?.charAt(0) || user?.name?.charAt(0) || 'M'}
                   </span>
                 </div>
                 <div className="hidden lg:block text-left">
-                  <div className="text-sm font-medium">{user?.full_name || user?.name || 'HR'}</div>
-                  <div className="text-xs text-gray-500">{user?.work_mail_address || user?.email || ''}</div>
+                  <div className="text-sm font-medium">{user?.names || user?.name || 'Supervisor'}</div>
+                  <div className="text-xs text-gray-500">{user?.email || user?.email || ''}</div>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
               </button>
@@ -127,15 +128,15 @@ export default function HRLayout() {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
                         <span className="text-white font-semibold">
-                          {user?.full_name?.charAt(0) || user?.name?.charAt(0) || 'H'}
+                          {user?.full_name?.charAt(0) || user?.name?.charAt(0) || 'M'}
                         </span>
                       </div>
                       <div>
-                        <div className="text-sm font-medium">{user?.full_name || user?.name || 'HR'}</div>
-                        <div className="text-xs text-gray-500">{user?.work_mail_address || user?.email || ''}</div>
+                        <div className="text-sm font-medium">{user?.names || user?.name || 'Supervisor'}</div>
+                        <div className="text-xs text-gray-500">{user?.email || user?.email || ''}</div>
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                          <Briefcase className="w-3 h-3" />
-                          Human Resources
+                          <GraduationCap className="w-3 h-3" />
+                          Supervisor
                         </div>
                       </div>
                     </div>
@@ -145,7 +146,7 @@ export default function HRLayout() {
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
-                        navigate("/hr/profile");
+                        navigate("/supervisor/profile");
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 rounded"
                     >
@@ -155,7 +156,7 @@ export default function HRLayout() {
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
-                        navigate("/hr/chatbot");
+                        navigate("/supervisor/chatbot");
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 rounded"
                     >
@@ -211,10 +212,10 @@ export default function HRLayout() {
           <div className="px-4 mt-8 mb-4">
             <div className="bg-gradient-to-br from-blue-50 to-pink-50 rounded-lg p-4 border border-blue-100">
               <div className="flex items-center gap-2 mb-2">
-                <Briefcase className="w-4 h-4 text-blue-700" />
-                <h3 className="text-sm font-medium text-blue-900">HR Access</h3>
+                <GraduationCap className="w-4 h-4 text-blue-700" />
+                <h3 className="text-sm font-medium text-blue-900">Supervisor Access</h3>
               </div>
-              <p className="text-xs text-blue-700">Manage employees, onboarding, and organizational resources.</p>
+              <p className="text-xs text-blue-700">You have system access according to the above options. If you need help, contact the support team.</p>
             </div>
           </div>
         </aside>

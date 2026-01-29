@@ -14,11 +14,6 @@ import {
   CalendarCheck, UserCog, Bell, Building, Award,
   Briefcase, GraduationCap, BookOpen, MessageCircle
 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart as RechartsPie, Pie, Cell, LineChart, Line
-} from 'recharts';
-
 
 // Import client-side export libraries
 import * as XLSX from 'xlsx';
@@ -29,25 +24,40 @@ import autoTable from 'jspdf-autotable';
 // Add autoTable to jsPDF prototype
 jsPDF.autoTable = autoTable;
 
-
-// Enhanced API Service
+// Role-based API Service
 const apiService = {
-  async generateReport(reportType, filters) {
+  async generateReport(reportType, filters, userRole) {
     const accessToken = localStorage.getItem('access_token');
 
+    // Role-based endpoint mapping
     const endpointMap = {
-      users: 'admin/users/analytics/',
-      tasks: 'admin/performance/',
-      assignments: 'admin/shifts/',
-      performance: 'admin/performance/',
-      attendance: 'supervisor/attendance/',
-      dashboard: 'admin/dashboard/',
-      shifts: 'admin/shifts/'
+      // Admin endpoints
+      admin: {
+        users: 'admin/users/analytics/',
+        tasks: 'admin/performance/',
+        assignments: 'admin/shifts/',
+        performance: 'admin/performance/',
+        dashboard: 'admin/dashboard/',
+        shifts: 'admin/shifts/'
+      },
+      // Supervisor endpoints
+      supervisor: {
+        attendance: 'supervisor/attendance/',
+        team_performance: 'supervisor/team/performance/',
+        team_summary: 'supervisor/dashboard/'
+      }
     };
 
-    const endpoint = endpointMap[reportType];
+    // Get appropriate endpoint based on user role
+    let endpoint;
+    if (userRole === 'admin') {
+      endpoint = endpointMap.admin[reportType];
+    } else if (userRole === 'supervisor') {
+      endpoint = endpointMap.supervisor[reportType];
+    }
+
     if (!endpoint) {
-      throw new Error(`Unknown report type: ${reportType}`);
+      throw new Error(`Report type "${reportType}" not available for your role (${userRole})`);
     }
 
     const params = new URLSearchParams();
@@ -884,15 +894,55 @@ const DataTable = ({ title, headers, data, showCount = true }) => {
   );
 };
 
-// Main Component
-export default function AdminReports() {
+
+const calculateAveragePerformance = (summary, type) => {
+  if (!summary.team_performance || !Array.isArray(summary.team_performance)) {
+    return 0;
+  }
+
+  const teamPerf = summary.team_performance;
+
+  switch (type) {
+    case 'task':
+      const taskRates = teamPerf.map(emp =>
+        emp.task_performance?.completion_rate || 0
+      );
+      return taskRates.length > 0
+        ? Math.round(taskRates.reduce((a, b) => a + b, 0) / taskRates.length)
+        : 0;
+
+    case 'break':
+      const breakRates = teamPerf.map(emp =>
+        emp.break_performance?.completion_rate || 0
+      );
+      return breakRates.length > 0
+        ? Math.round(breakRates.reduce((a, b) => a + b, 0) / breakRates.length)
+        : 0;
+
+    case 'overall':
+      const overallRates = teamPerf.map(emp => {
+        const taskRate = emp.task_performance?.completion_rate || 0;
+        const breakRate = emp.break_performance?.completion_rate || 0;
+        return (taskRate + breakRate) / 2;
+      });
+      return overallRates.length > 0
+        ? Math.round(overallRates.reduce((a, b) => a + b, 0) / overallRates.length)
+        : 0;
+
+    default:
+      return 0;
+  }
+};
+
+// Main Component - MODIFIED FOR SUPERVISORS
+export default function SupervisorReports() {
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
   // Report State
-  const [selectedReport, setSelectedReport] = useState('users');
+  const [selectedReport, setSelectedReport] = useState('attendance');
   const [reportData, setReportData] = useState(null);
   const [filters, setFilters] = useState({
     days: '30',
@@ -905,43 +955,77 @@ export default function AdminReports() {
   const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
 
-  const reportTypes = [
-    {
-      id: 'users',
-      title: 'Users Analytics',
-      description: 'User distribution, demographics, and activity metrics',
-      icon: Users,
-      color: 'blue'
-    },
-    {
-      id: 'tasks',
-      title: 'Task Performance',
-      description: 'Task completion rates and performance metrics',
-      icon: Target,
-      color: 'green'
-    },
-    {
-      id: 'assignments',
-      title: 'Shift Assignments',
-      description: 'Shift allocation and user distribution',
-      icon: ClipboardList,
-      color: 'purple'
-    },
-    {
-      id: 'performance',
-      title: 'Performance Report',
-      description: 'Break performance and compliance metrics',
-      icon: Activity,
-      color: 'orange'
-    },
-    {
-      id: 'attendance',
-      title: 'Attendance Report',
-      description: 'Daily attendance and activity tracking',
-      icon: CalendarCheck,
-      color: 'red'
-    }
-  ];
+  // Role-based report types
+  const getReportTypes = () => {
+    const userRole = user?.role || 'employee';
+
+    const baseReports = {
+      supervisor: [
+        {
+          id: 'attendance',
+          title: 'Team Attendance',
+          description: 'Daily attendance and activity tracking for your team',
+          icon: CalendarCheck,
+          color: 'red'
+        },
+        {
+          id: 'team_performance',
+          title: 'Team Performance',
+          description: 'Team performance and productivity metrics',
+          icon: Activity,
+          color: 'orange'
+        },
+        {
+          id: 'team_summary',
+          title: 'Team Summary',
+          description: 'Overview of your supervised employees',
+          icon: Users,
+          color: 'blue'
+        }
+      ],
+      admin: [
+        {
+          id: 'users',
+          title: 'Users Analytics',
+          description: 'User distribution, demographics, and activity metrics',
+          icon: Users,
+          color: 'blue'
+        },
+        {
+          id: 'tasks',
+          title: 'Task Performance',
+          description: 'Task completion rates and performance metrics',
+          icon: Target,
+          color: 'green'
+        },
+        {
+          id: 'assignments',
+          title: 'Shift Assignments',
+          description: 'Shift allocation and user distribution',
+          icon: ClipboardList,
+          color: 'purple'
+        },
+        {
+          id: 'performance',
+          title: 'Performance Report',
+          description: 'Break performance and compliance metrics',
+          icon: Activity,
+          color: 'orange'
+        },
+        {
+          id: 'attendance',
+          title: 'Attendance Report',
+          description: 'Daily attendance and activity tracking',
+          icon: CalendarCheck,
+          color: 'red'
+        }
+      ]
+    };
+
+    return baseReports[userRole] || baseReports.supervisor;
+  };
+
+  const reportTypes = getReportTypes();
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -953,9 +1037,11 @@ export default function AdminReports() {
     setSuccess(null);
 
     try {
-      console.log('🚀 Starting report generation...');
+      console.log('🚀 Starting report generation for supervisor...');
+      console.log('👤 User role:', user?.role);
+      console.log('📊 Selected report:', selectedReport);
 
-      const data = await apiService.generateReport(selectedReport, filters);
+      const data = await apiService.generateReport(selectedReport, filters, user?.role);
 
       if (data.success) {
         const reportDataWithType = {
@@ -967,16 +1053,13 @@ export default function AdminReports() {
 
         setReportData(reportDataWithType);
 
-        // DEBUG: Log the actual data structure
-        console.log('📊 ACTUAL DATA STRUCTURE:', {
+        // Log supervisor-specific data
+        console.log('👨‍💼 SUPERVISOR REPORT DATA:', {
           summary: data.summary || 'No summary data',
-          detailed_data: data.detailed_data || 'No detailed data',
-          metadata: data.metadata || 'No metadata',
-          hasSummary: !!data.summary,
-          hasDetailedData: !!data.detailed_data,
-          summaryKeys: data.summary ? Object.keys(data.summary) : [],
-          detailedDataKeys: data.detailed_data ? Object.keys(data.detailed_data) : [],
-          metadataKeys: data.metadata ? Object.keys(data.metadata) : []
+          supervisorName: data.summary?.supervisor_name || user?.names,
+          teamMembers: data.summary?.total_team_members || data.summary?.total_employees || 0,
+          reportType: selectedReport,
+          hasAttendanceDetails: !!data.summary?.attendance_details
         });
 
         setSuccess('Report generated successfully!');
@@ -1002,16 +1085,18 @@ export default function AdminReports() {
 
     try {
       const config = {
-        generated_by: user?.names || 'System Administrator',
+        generated_by: user?.names || 'Supervisor',
         organization: 'CCI-Rwanda',
-        system: 'Time Sync: AI-Powered Real-Time Employee Monitoring System'
+        system: 'Time Sync: AI-Powered Real-Time Employee Monitoring System',
+        supervisor_name: user?.names,
+        role: user?.role
       };
 
       // Get the current displayed tables from UI
       const displayedTables = getDetailedTables();
 
       let blob;
-      let filename = `CCI_Rwanda_${selectedReport}_Report_${new Date().toISOString().split('T')[0]}`;
+      let filename = `CCI_Rwanda_${user?.role}_${selectedReport}_${new Date().toISOString().split('T')[0]}`;
 
       switch (format) {
         case 'pdf':
@@ -1056,25 +1141,66 @@ export default function AdminReports() {
     const { summary } = reportData;
 
     switch (selectedReport) {
-      case 'users':
+      case 'team_summary':
         return [
-          { label: 'Total Users', value: summary.total_users || 0, icon: Users, color: 'blue', change: 5.2 },
-          { label: 'Active Today', value: summary.active_today || 0, icon: UserCheck, color: 'green', change: 8.1 },
-          { label: 'Recent Registrations', value: summary.recent_registrations || 0, icon: UserCog, color: 'purple', change: 3.4 },
-          { label: 'Avg Salary', value: `FRW ${summary.average_salary?.toFixed(2) || '0.00'}`, icon: DollarSign, color: 'orange' }
+          {
+            label: 'Team Members',
+            value: summary.total_team_members || 0,
+            icon: Users,
+            color: 'blue'
+          },
+          {
+            label: 'Present Today',
+            value: summary.today_attendance || 0,
+            icon: UserCheck,
+            color: 'green',
+            change: 2.3
+          },
+          {
+            label: 'Today\'s Tasks',
+            value: summary.today_tasks || 0,
+            icon: CheckSquare,
+            color: 'purple'
+          },
+          {
+            label: 'Attendance Rate',
+            value: `${summary.attendance_rate || 0}%`,
+            icon: TrendingUp,
+            color: 'orange',
+            change: 3.1
+          }
         ];
 
-      case 'tasks':
-      case 'performance':
+      case 'team_performance':
         return [
-          { label: 'Total Tasks', value: summary.task_performance?.total || 0, icon: Target, color: 'blue' },
-          { label: 'Completed', value: summary.task_performance?.completed || 0, icon: CheckSquare, color: 'green', change: 12.5 },
-          { label: 'In Progress', value: summary.task_performance?.in_progress || 0, icon: Activity, color: 'yellow' },
-          { label: 'Completion Rate', value: `${summary.task_performance?.completion_rate || 0}%`, icon: TrendingUp, color: 'purple', change: 4.8 }
+          {
+            label: 'Team Size',
+            value: summary.total_employees || 0,
+            icon: Users,
+            color: 'blue'
+          },
+          {
+            label: 'Avg. Task Completion',
+            value: `${calculateAveragePerformance(summary, 'task')}%`,  // Fixed: remove "this."
+            icon: Target,
+            color: 'green',
+            change: 5.2
+          },
+          {
+            label: 'Avg. Break Compliance',
+            value: `${calculateAveragePerformance(summary, 'break')}%`,  // Fixed: remove "this."
+            icon: CheckCircle,
+            color: 'purple'
+          },
+          {
+            label: 'Performance Score',
+            value: `${calculateAveragePerformance(summary, 'overall')}%`,  // Fixed: remove "this."
+            icon: TrendingUp,
+            color: 'orange'
+          }
         ];
 
       case 'attendance':
-        // FIXED: Extract data from your actual API response structure
         const attendanceSummary = summary.attendance_summary || {};
         return [
           {
@@ -1106,19 +1232,11 @@ export default function AdminReports() {
           }
         ];
 
-      case 'assignments':
-      case 'shifts':
-        return [
-          { label: 'Total Shifts', value: summary.total_shifts || 0, icon: Clock, color: 'blue' },
-          { label: 'Active Shifts', value: summary.active_shifts || 0, icon: CheckCircle, color: 'green' },
-          { label: 'Inactive Shifts', value: summary.inactive_shifts || 0, icon: AlertCircle, color: 'red' },
-          { label: 'Avg Users/Shift', value: summary.average_users_per_shift?.toFixed(2) || '0', icon: Users, color: 'purple' }
-        ];
-
       default:
         return [];
     }
   };
+
 
   const getDetailedTables = () => {
     if (!reportData?.detailed_data && !reportData?.summary) return [];
@@ -1126,113 +1244,15 @@ export default function AdminReports() {
     const { detailed_data, summary, report_type } = reportData;
 
     switch (report_type) {
-      case 'users':
-        const tables = [];
-
-        if (detailed_data.all_users && detailed_data.all_users.length > 0) {
-          tables.push({
-            title: 'All Users',
-            headers: ['Name', 'Employee Number', 'Email', 'Role', 'Status', 'Shift', 'Gender', 'Created At'],
-            data: detailed_data.all_users.map(user => [
-              user.names,
-              user.emp_number,
-              user.email,
-              user.role,
-              user.status,
-              user.current_shift__name || 'N/A',
-              user.gender || 'N/A',
-              new Date(user.created_at).toLocaleDateString()
-            ])
-          });
-        }
-
-        if (detailed_data.users_by_shift_detailed && detailed_data.users_by_shift_detailed.length > 0) {
-          tables.push({
-            title: 'Users by Shift',
-            headers: ['Shift Name', 'Total Users', 'Active Users', 'Inactive Users', 'Activity Rate'],
-            data: detailed_data.users_by_shift_detailed.map(shift => {
-              const inactive = shift.user_count - (shift.active_users || 0);
-              const activityRate = shift.user_count > 0
-                ? Math.round((shift.active_users / shift.user_count) * 100)
-                : 0;
-              return [
-                shift.name,
-                shift.user_count,
-                shift.active_users || 0,
-                inactive,
-                `${activityRate}%`
-              ];
-            })
-          });
-        }
-
-        if (detailed_data.users_by_gender_detailed && detailed_data.users_by_gender_detailed.length > 0) {
-          tables.push({
-            title: 'Users by Gender',
-            headers: ['Gender', 'Count', 'Percentage'],
-            data: detailed_data.users_by_gender_detailed.map(gender => {
-              const total = reportData.summary?.total_users || 1;
-              const percentage = Math.round((gender.count / total) * 100);
-              return [
-                gender.gender || 'Not Specified',
-                gender.count,
-                `${percentage}%`
-              ];
-            })
-          });
-        }
-
-        return tables;
-
-      case 'tasks':
-      case 'performance':
-        const perfTables = [];
-
-        if (detailed_data.break_logs && detailed_data.break_logs.length > 0) {
-          perfTables.push({
-            title: 'Break Performance',
-            headers: ['Employee', 'Break Type', 'Scheduled Start', 'Actual Start', 'Status', 'Start Punctuality', 'End Punctuality'],
-            data: detailed_data.break_logs.map(log => [
-              log.user__names,
-              log.break_template__name,
-              new Date(log.scheduled_start).toLocaleString(),
-              log.actual_start ? new Date(log.actual_start).toLocaleString() : 'N/A',
-              log.status,
-              log.start_punctuality || 'N/A',
-              log.end_punctuality || 'N/A'
-            ])
-          });
-        }
-
-        if (detailed_data.task_assignments && detailed_data.task_assignments.length > 0) {
-          perfTables.push({
-            title: 'Task Assignments',
-            headers: ['Employee', 'Task', 'Assignment Date', 'Scheduled Start', 'Scheduled End', 'Status', 'Priority'],
-            data: detailed_data.task_assignments.map(task => [
-              task.user__names,
-              task.task__name,
-              task.assignment_date,
-              new Date(task.start_time).toLocaleTimeString(),
-              new Date(task.end_time).toLocaleTimeString(),
-              task.status,
-              task.priority
-            ])
-          });
-        }
-
-        return perfTables;
-
       case 'attendance':
         const attendanceTables = [];
 
-        // FIXED: Check both detailed_data and summary for attendance data
-        const attendanceDetails = detailed_data?.attendance_details || summary?.attendance_details;
-
-        if (attendanceDetails && attendanceDetails.length > 0) {
+        // Team attendance details
+        if (summary.attendance_details && summary.attendance_details.length > 0) {
           attendanceTables.push({
-            title: 'Attendance Details',
+            title: 'Team Attendance Details',
             headers: ['Employee Name', 'Employee Number', 'Role', 'Shift', 'Status', 'Login Time', 'Logout Time', 'Hours Worked'],
-            data: attendanceDetails.map(attendance => [
+            data: summary.attendance_details.map(attendance => [
               attendance.employee_name || attendance.names || 'N/A',
               attendance.employee_number || attendance.emp_number || 'N/A',
               attendance.role || 'N/A',
@@ -1245,86 +1265,208 @@ export default function AdminReports() {
           });
         }
 
-        // Add events table if available
-        if (detailed_data?.events_by_type || summary?.metadata?.events_by_type) {
-          const eventsData = detailed_data?.events_by_type || summary?.metadata?.events_by_type;
-          const eventsTable = {
-            title: 'Events by Type',
-            headers: ['Event Type', 'Count'],
-            data: Object.entries(eventsData).map(([type, count]) => [type, count])
-          };
+        // Activity logs by type
+        if (detailed_data?.logs_by_type) {
+          const logsByType = detailed_data.logs_by_type;
+          const logTypes = ['login', 'logout', 'break_start', 'break_end'];
 
-          // Add total events row
-          const totalEvents = Object.values(eventsData).reduce((sum, count) => sum + count, 0);
-          eventsTable.data.push(['TOTAL', totalEvents]);
-
-          attendanceTables.push(eventsTable);
+          logTypes.forEach(logType => {
+            if (logsByType[logType] && logsByType[logType].length > 0) {
+              attendanceTables.push({
+                title: `${logType.replace('_', ' ').toUpperCase()} Logs`,
+                headers: ['Employee', 'Time', 'Status', 'Activity', 'Device Info'],
+                data: logsByType[logType].map(log => [
+                  log.user__names,
+                  new Date(log.actual_time).toLocaleString(),
+                  log.status,
+                  log.activity,
+                  log.device_info || 'N/A'
+                ])
+              });
+            }
+          });
         }
 
         return attendanceTables;
 
-      case 'assignments':
-      case 'shifts':
-        const shiftTables = [];
+      case 'team_performance':
+        const performanceTables = [];
 
-        if (detailed_data.shifts && detailed_data.shifts.length > 0) {
-          shiftTables.push({
-            title: 'Shifts',
-            headers: ['Shift Name', 'Start Time', 'End Time', 'Status', 'Description'],
-            data: detailed_data.shifts.map(shift => [
-              shift.name,
-              shift.start_at,
-              shift.end_at,
-              shift.status,
-              shift.description || 'N/A'
+        // Team performance summary
+        if (summary.team_performance && summary.team_performance.length > 0) {
+          performanceTables.push({
+            title: 'Team Performance Summary',
+            headers: ['Employee', 'Task Completion', 'Break Compliance', 'Attendance', 'Overall Score'],
+            data: summary.team_performance.map(emp => [
+              emp.employee_name,
+              `${emp.task_performance?.completion_rate || 0}%`,
+              `${emp.break_performance?.completion_rate || 0}%`,
+              `${emp.attendance?.attendance_rate || 0}%`,
+              `${Math.round(
+                ((emp.task_performance?.completion_rate || 0) +
+                  (emp.break_performance?.completion_rate || 0) +
+                  (emp.attendance?.attendance_rate || 0)) / 3
+              )}%`
             ])
           });
         }
 
-        if (detailed_data.break_templates && detailed_data.break_templates.length > 0) {
-          shiftTables.push({
-            title: 'Break Templates',
-            headers: ['Break Name', 'Shift', 'Start Time', 'End Time', 'Status'],
-            data: detailed_data.break_templates.map(template => [
-              template.name,
-              template.shift__name,
-              template.start_at,
-              template.end_at,
-              template.status
+        // Individual break logs
+        if (detailed_data?.break_logs && detailed_data.break_logs.length > 0) {
+          performanceTables.push({
+            title: 'Break Performance Details',
+            headers: ['Employee', 'Break Type', 'Scheduled Start', 'Actual Start', 'Status', 'Punctuality'],
+            data: detailed_data.break_logs.map(log => [
+              log.user__names,
+              log.break_template__name,
+              new Date(log.scheduled_start).toLocaleString(),
+              log.actual_start ? new Date(log.actual_start).toLocaleString() : 'N/A',
+              log.status,
+              log.start_punctuality || 'N/A'
             ])
           });
         }
 
-        return shiftTables;
+        // Individual task assignments
+        if (detailed_data?.task_assignments && detailed_data.task_assignments.length > 0) {
+          performanceTables.push({
+            title: 'Task Assignment Details',
+            headers: ['Employee', 'Task', 'Assignment Date', 'Status', 'Priority'],
+            data: detailed_data.task_assignments.map(task => [
+              task.user__names,
+              task.task__name,
+              task.assignment_date,
+              task.status,
+              task.priority
+            ])
+          });
+        }
+
+        return performanceTables;
+
+      case 'team_summary':
+        const summaryTables = [];
+
+        // Team members list
+        if (detailed_data?.team_members && detailed_data.team_members.length > 0) {
+          summaryTables.push({
+            title: 'Team Members',
+            headers: ['Name', 'Employee Number', 'Email', 'Shift', 'Status'],
+            data: detailed_data.team_members.map(member => [
+              member.names,
+              member.emp_number,
+              member.email,
+              member.current_shift__name || 'N/A',
+              member.status
+            ])
+          });
+        }
+
+        // Today's attendance
+        if (detailed_data?.today_attendance_details && detailed_data.today_attendance_details.length > 0) {
+          summaryTables.push({
+            title: "Today's Attendance",
+            headers: ['Employee', 'Login Time', 'Activity'],
+            data: detailed_data.today_attendance_details.map(attendance => [
+              attendance.user__names,
+              new Date(attendance.actual_time).toLocaleString(),
+              attendance.activity
+            ])
+          });
+        }
+
+        // Pending requests
+        if (detailed_data?.pending_requests_details && detailed_data.pending_requests_details.length > 0) {
+          summaryTables.push({
+            title: 'Pending Shift Change Requests',
+            headers: ['Employee', 'Request Type', 'Reason', 'Submitted'],
+            data: detailed_data.pending_requests_details.map(request => [
+              request.user__names,
+              request.change_type,
+              request.reason,
+              new Date(request.created_at).toLocaleDateString()
+            ])
+          });
+        }
+
+        return summaryTables;
 
       default:
         return [];
     }
   };
 
+  // Role-based page title
+  const getPageTitle = () => {
+    if (user?.role === 'admin') {
+      return 'Advanced Reporting System';
+    } else if (user?.role === 'supervisor') {
+      return 'Team Management Dashboard';
+    }
+    return 'Employee Reports';
+  };
+
+  // Role-based subtitle
+  const getPageSubtitle = () => {
+    if (user?.role === 'admin') {
+      return 'Generate, analyze, and export comprehensive system reports';
+    } else if (user?.role === 'supervisor') {
+      return 'Monitor and manage your team performance and attendance';
+    }
+    return 'View your personal reports and statistics';
+  };
+
+  // Filter role dropdown based on user role
+  const getRoleOptions = () => {
+    if (user?.role === 'admin') {
+      return (
+        <>
+          <option value="">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="employee">Employee</option>
+        </>
+      );
+    } else if (user?.role === 'supervisor') {
+      return (
+        <>
+          <option value="">All Team Members</option>
+          <option value="employee">Employees Only</option>
+        </>
+      );
+    }
+    return <option value="">All Roles</option>;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/20 to-gray-50">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
-                <FileBarChart className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Advanced Reporting System</h1>
-                <p className="text-sm text-gray-600">
-                  Generate, analyze, and export comprehensive system reports
-                </p>
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
+              <FileBarChart className="w-6 h-6 text-white" />
             </div>
-
-            <div className="hidden md:block text-right">
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Generated By</p>
-              <p className="text-sm font-semibold text-gray-900">{user?.names || 'System Administrator'}</p>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
+              <p className="text-sm text-gray-600">
+                {getPageSubtitle()}
+                {user?.role === 'supervisor' && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    👨‍💼 Logged in as Supervisor
+                  </span>
+                )}
+              </p>
             </div>
           </div>
+
+          <div className="hidden md:block text-right">
+            <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Generated By</p>
+            <p className="text-sm font-semibold text-gray-900">{user?.names || 'Supervisor'}</p>
+            <p className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</p>
+          </div>
         </div>
+      </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
@@ -1335,12 +1477,21 @@ export default function AdminReports() {
         {/* Report Type Selection */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
           <div className="px-6 py-5 border-b border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900">Select Report Type</h2>
-            <p className="text-sm text-gray-600 mt-1">Choose the type of report you want to generate</p>
+            <h2 className="text-xl font-bold text-gray-900">
+              {user?.role === 'supervisor' ? 'Select Team Report' : 'Select Report Type'}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {user?.role === 'supervisor'
+                ? 'Choose the type of report for your team'
+                : 'Choose the type of report you want to generate'}
+            </p>
           </div>
 
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className={`grid gap-4 ${reportTypes.length === 3
+                ? 'grid-cols-1 md:grid-cols-3'
+                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5'
+              }`}>
               {reportTypes.map((report) => (
                 <ReportTypeCard
                   key={report.id}
@@ -1364,8 +1515,14 @@ export default function AdminReports() {
           <div className="px-6 py-5 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Report Configuration</h3>
-                <p className="text-sm text-gray-600">Customize your report with filters and settings</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {user?.role === 'supervisor' ? 'Team Report Configuration' : 'Report Configuration'}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {user?.role === 'supervisor'
+                    ? 'Filter and customize your team report'
+                    : 'Customize your report with filters and settings'}
+                </p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -1389,7 +1546,7 @@ export default function AdminReports() {
                   ) : (
                     <>
                       <FileBarChart className="w-5 h-5 mr-2" />
-                      Generate Report
+                      {user?.role === 'supervisor' ? 'Generate Team Report' : 'Generate Report'}
                     </>
                   )}
                 </button>
@@ -1398,7 +1555,7 @@ export default function AdminReports() {
           </div>
 
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Clock className="w-4 h-4 inline mr-2" />
@@ -1420,17 +1577,14 @@ export default function AdminReports() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Shield className="w-4 h-4 inline mr-2" />
-                  Role Filter
+                  {user?.role === 'supervisor' ? 'Team Member Filter' : 'Role Filter'}
                 </label>
                 <select
                   value={filters.role}
                   onChange={(e) => handleFilterChange('role', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
-                  <option value="">All Roles</option>
-                  <option value="admin">Admin</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="employee">Employee</option>
+                  {getRoleOptions()}
                 </select>
               </div>
 
@@ -1451,26 +1605,9 @@ export default function AdminReports() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Building className="w-4 h-4 inline mr-2" />
-                  Department/Shift
-                </label>
-                <select
-                  value={filters.department}
-                  onChange={(e) => handleFilterChange('department', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                >
-                  <option value="">All Departments</option>
-                  <option value="operations">Operations</option>
-                  <option value="hr">Human Resources</option>
-                  <option value="it">IT Department</option>
-                  <option value="finance">Finance</option>
-                </select>
-              </div>
             </div>
 
-            {selectedReport === 'attendance' && (
+            {(selectedReport === 'attendance' || user?.role === 'supervisor') && (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <Calendar className="w-4 h-4 inline mr-2" />
@@ -1490,6 +1627,32 @@ export default function AdminReports() {
         {/* Report Results */}
         {reportData && (
           <>
+            {/* Supervisor-specific debug info */}
+            {user?.role === 'supervisor' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-blue-800 mb-1">Supervisor Report Info</h4>
+                    <p className="text-sm text-blue-700">
+                      Report for: <span className="font-medium">{reportData.summary?.supervisor_name || user.names}</span>
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      Team Size: <span className="font-medium">
+                        {reportData.summary?.total_team_members ||
+                          reportData.summary?.total_employees ||
+                          reportData.summary?.attendance_summary?.total_users ||
+                          0} members
+                      </span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-blue-600 uppercase font-medium">Scope</p>
+                    <p className="text-sm font-semibold text-blue-800">Supervised Team Only</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {getReportSummaryStats().map((stat, index) => (
@@ -1522,7 +1685,7 @@ export default function AdminReports() {
                       className={`px-4 py-2 font-medium rounded-lg transition-colors ${activeTab === 'data' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
                     >
                       <Database className="w-4 h-4 inline mr-2" />
-                      Data View
+                      {user?.role === 'supervisor' ? 'Team Data' : 'Data View'}
                     </button>
                     <button
                       onClick={() => setActiveTab('export')}
@@ -1598,10 +1761,13 @@ export default function AdminReports() {
                         </div>
                         <div>
                           <h3 className="text-xl font-bold text-gray-900">
-                            {selectedReport.charAt(0).toUpperCase() + selectedReport.slice(1)} Report Summary
+                            {user?.role === 'supervisor' ? 'Team Report Summary' : 'Report Summary'}
                           </h3>
                           <p className="text-gray-600 mt-1">
-                            Generated on {new Date(reportData.generated_at).toLocaleDateString()} at {new Date(reportData.generated_at).toLocaleTimeString()}
+                            {user?.role === 'supervisor'
+                              ? `Supervisor: ${reportData.summary?.supervisor_name || user.names}`
+                              : `Generated on ${new Date(reportData.generated_at).toLocaleDateString()}`
+                            }
                           </p>
                         </div>
                       </div>
@@ -1612,19 +1778,27 @@ export default function AdminReports() {
                           <div className="space-y-3 text-sm">
                             <div className="flex justify-between py-2 border-b border-blue-100">
                               <span className="text-gray-600">Report Type:</span>
-                              <span className="font-medium text-gray-900">{selectedReport.charAt(0).toUpperCase() + selectedReport.slice(1)}</span>
+                              <span className="font-medium text-gray-900">
+                                {selectedReport.charAt(0).toUpperCase() + selectedReport.slice(1)}
+                              </span>
                             </div>
                             <div className="flex justify-between py-2 border-b border-blue-100">
                               <span className="text-gray-600">Generated By:</span>
-                              <span className="font-medium text-gray-900">{user?.names || 'System Administrator'}</span>
+                              <span className="font-medium text-gray-900">
+                                {reportData.summary?.supervisor_name || user?.names || 'Supervisor'}
+                              </span>
                             </div>
                             <div className="flex justify-between py-2 border-b border-blue-100">
-                              <span className="text-gray-600">Time Period:</span>
-                              <span className="font-medium text-gray-900">{reportData.summary?.time_period || `Last ${filters.days} days`}</span>
+                              <span className="text-gray-600">User Role:</span>
+                              <span className="font-medium text-gray-900 capitalize">
+                                {user?.role}
+                              </span>
                             </div>
                             <div className="flex justify-between py-2 border-b border-blue-100">
-                              <span className="text-gray-600">Organization:</span>
-                              <span className="font-medium text-gray-900">CCI-Rwanda</span>
+                              <span className="text-gray-600">Scope:</span>
+                              <span className="font-medium text-gray-900">
+                                {user?.role === 'supervisor' ? 'Supervised Team Only' : 'All Users'}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1666,7 +1840,10 @@ export default function AdminReports() {
                       </div>
                       <h3 className="text-2xl font-bold text-gray-900 mb-3">Export Report</h3>
                       <p className="text-gray-600 mb-8">
-                        Download your report in multiple formats for analysis, sharing, or archiving.
+                        {user?.role === 'supervisor'
+                          ? 'Download your team report in multiple formats for analysis, sharing, or archiving.'
+                          : 'Download your report in multiple formats for analysis, sharing, or archiving.'
+                        }
                         Reports will include both summary and detailed data.
                       </p>
 
@@ -1732,13 +1909,18 @@ export default function AdminReports() {
                 <Shield className="w-6 h-6 text-emerald-400" />
               </div>
               <div>
-                <h4 className="font-bold text-lg">Advanced Reporting System</h4>
+                <h4 className="font-bold text-lg">
+                  {user?.role === 'supervisor' ? 'Team Management Dashboard' : 'Advanced Reporting System'}
+                </h4>
                 <p className="text-sm text-gray-300">CCI-Rwanda v2.0</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Generated By</p>
-              <p className="text-sm font-semibold">{user?.names || 'System Administrator'}</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                {user?.role === 'supervisor' ? 'Team Supervisor' : 'Generated By'}
+              </p>
+              <p className="text-sm font-semibold">{user?.names || 'Supervisor'}</p>
+              <p className="text-xs text-gray-300 capitalize">{user?.role || 'User'}</p>
             </div>
           </div>
         </div>

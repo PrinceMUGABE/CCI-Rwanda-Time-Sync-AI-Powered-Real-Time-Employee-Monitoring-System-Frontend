@@ -28,9 +28,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     // Redirect to user's appropriate dashboard
     const roleRoutes = {
       admin: '/admin',
-      hr: '/hr',
-      mentor: '/mentor',
-      mentee: '/mentee'
+      employee: '/employee',
+      supervisor: '/supervisor',
     };
     return <Navigate to={roleRoutes[user.role] || '/login'} replace />;
   }
