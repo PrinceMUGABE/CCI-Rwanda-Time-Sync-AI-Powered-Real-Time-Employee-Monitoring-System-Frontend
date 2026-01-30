@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  Users, TrendingUp, Clock, AlertOctagon, RefreshCw, 
+import {
+  Users, TrendingUp, Clock, AlertOctagon, RefreshCw,
   Activity, BarChart3, PieChart, Calendar, Bell,
   ChevronRight, Loader2, AlertTriangle, CheckCircle,
   UserCheck, Target, Zap, TrendingDown, ArrowUpRight, ArrowDownRight,
@@ -9,7 +9,7 @@ import {
   FileText, CheckSquare, XCircle, AlertCircle, MoreVertical,
   Award, Star, BarChart2, Eye, Filter, Download
 } from 'lucide-react';
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart as RechartsPie, Pie, Cell, LineChart, Line, AreaChart, Area,
   RadialBarChart, RadialBar
@@ -24,7 +24,7 @@ const apiService = {
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch dashboard data');
     const data = await response.json();
     console.log('📊 Supervisor Dashboard Data:', data.summary);
@@ -38,7 +38,7 @@ const apiService = {
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch team performance data');
     const data = await response.json();
     console.log('📈 Team Performance Data:', data.summary);
@@ -48,14 +48,14 @@ const apiService = {
   async fetchTeamAttendance(date) {
     const params = new URLSearchParams();
     if (date) params.append('date', date);
-    
+
     const response = await fetch(`http://127.0.0.1:8000/report/supervisor/attendance/?${params}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch team attendance');
     const data = await response.json();
     console.log('✅ Team Attendance Data:', data.summary);
@@ -69,7 +69,7 @@ const apiService = {
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch supervised users');
     const data = await response.json();
     console.log('👥 Supervised Users:', data.users?.length || 0, 'users');
@@ -93,7 +93,7 @@ const StatCard = ({ title, value, icon: Icon, color, trend, change, description,
   const TrendIcon = isPositive ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className={`bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group ${onClick ? 'hover:border-gray-300' : ''}`}
     >
@@ -142,20 +142,20 @@ const EmployeePerformanceCard = ({ employee, index }) => {
   const breakRate = employee.break_performance?.completion_rate || 0;
   const taskRate = employee.task_performance?.completion_rate || 0;
   const attendanceRate = employee.attendance?.attendance_rate || 0;
-  
+
   const getPerformanceColor = (rate) => {
     if (rate >= 90) return 'text-emerald-600 bg-emerald-50';
     if (rate >= 70) return 'text-yellow-600 bg-yellow-50';
     return 'text-rose-600 bg-rose-50';
   };
-  
+
   const getPerformanceLabel = (rate) => {
     if (rate >= 90) return 'Excellent';
     if (rate >= 70) return 'Good';
     if (rate >= 50) return 'Needs Improvement';
     return 'Poor';
   };
-  
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-4">
@@ -174,7 +174,7 @@ const EmployeePerformanceCard = ({ employee, index }) => {
           {getPerformanceLabel((breakRate + taskRate + attendanceRate) / 3)}
         </div>
       </div>
-      
+
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="text-center">
           <div className="text-lg font-bold text-gray-900">{breakRate}%</div>
@@ -189,7 +189,7 @@ const EmployeePerformanceCard = ({ employee, index }) => {
           <div className="text-xs text-gray-500">Attendance</div>
         </div>
       </div>
-      
+
       <div className="text-xs text-gray-500">
         {employee.shift ? `Shift: ${employee.shift}` : 'No shift assigned'}
       </div>
@@ -206,8 +206,8 @@ const AttendanceStatusBadge = ({ status, isDayOff }) => {
       </span>
     );
   }
-  
-  switch(status) {
+
+  switch (status) {
     case 'Present':
       return (
         <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">
@@ -272,11 +272,11 @@ export default function SupervisorDashboard() {
   const [supervisedUsers, setSupervisedUsers] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeView, setActiveView] = useState('overview'); // overview, performance, attendance
-  
+
   const fetchAllData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const [dashboard, performance, attendance, users] = await Promise.all([
         apiService.fetchDashboardData(),
@@ -284,12 +284,12 @@ export default function SupervisorDashboard() {
         apiService.fetchTeamAttendance(selectedDate),
         apiService.fetchSupervisedUsers()
       ]);
-      
+
       setDashboardData(dashboard);
       setTeamPerformance(performance);
       setTeamAttendance(attendance);
       setSupervisedUsers(users.users || []);
-      
+
       // Log summary data to console
       console.log('📋 SUPERVISOR DASHBOARD SUMMARY:');
       console.log('============================');
@@ -310,11 +310,11 @@ export default function SupervisorDashboard() {
         console.log(`      Attendance: ${emp.attendance?.attendance_rate || 0}%`);
       });
       console.log('============================');
-      
+
     } catch (err) {
       console.error('Error fetching supervisor dashboard data:', err);
       setError(err.message || 'Failed to load dashboard data');
-      
+
       if (err.message.includes('401') || err.message.includes('403')) {
         setTimeout(() => logout(), 2000);
       }
@@ -325,7 +325,7 @@ export default function SupervisorDashboard() {
 
   useEffect(() => {
     fetchAllData();
-    
+
     // Auto-refresh every 5 minutes
     const interval = setInterval(fetchAllData, 300000);
     return () => clearInterval(interval);
@@ -364,9 +364,9 @@ export default function SupervisorDashboard() {
     const todayActivity = {
       logins: teamAttendance.detailed_data?.summary_by_log_type?.login || 0,
       logouts: teamAttendance.detailed_data?.summary_by_log_type?.logout || 0,
-      breaks: (teamAttendance.detailed_data?.summary_by_log_type?.break_start || 0) + 
-              (teamAttendance.detailed_data?.summary_by_log_type?.break_end || 0),
-      tasks: teamPerformance.summary?.team_performance?.reduce((acc, emp) => 
+      breaks: (teamAttendance.detailed_data?.summary_by_log_type?.break_start || 0) +
+        (teamAttendance.detailed_data?.summary_by_log_type?.break_end || 0),
+      tasks: teamPerformance.summary?.team_performance?.reduce((acc, emp) =>
         acc + (emp.task_performance?.total || 0), 0) || 0
     };
 
@@ -380,6 +380,8 @@ export default function SupervisorDashboard() {
 
   const chartData = prepareChartData();
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+
+
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorState message={error} onRetry={fetchAllData} />;
@@ -407,7 +409,7 @@ export default function SupervisorDashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
@@ -418,34 +420,34 @@ export default function SupervisorDashboard() {
                   className="bg-transparent border-none focus:outline-none text-sm"
                 />
               </div>
-              
+
               <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
                 <button
                   onClick={() => setActiveView('overview')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'overview' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'overview'
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Overview
                 </button>
                 <button
                   onClick={() => setActiveView('performance')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'performance' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'performance'
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Performance
                 </button>
                 <button
                   onClick={() => setActiveView('attendance')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'attendance' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'attendance'
+                    ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Attendance
                 </button>
               </div>
-              
+
               <button
                 onClick={fetchAllData}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -484,7 +486,7 @@ export default function SupervisorDashboard() {
                 color="blue"
                 description={`${teamAttendance?.summary?.attendance_summary?.present || 0} present today`}
               />
-              
+
               <StatCard
                 title="Today's Attendance"
                 value={`${teamAttendance?.summary?.attendance_summary?.attendance_rate || 0}%`}
@@ -492,20 +494,21 @@ export default function SupervisorDashboard() {
                 color="green"
                 description={`${teamAttendance?.summary?.attendance_summary?.present || 0} of ${teamAttendance?.summary?.attendance_summary?.total_users || 0} present`}
               />
-              
+
               <StatCard
                 title="Avg. Break Completion"
-                value={teamPerformance.summary?.team_performance?.reduce((acc, emp) => 
-                  acc + (emp.break_performance?.completion_rate || 0), 0) / Math.max(1, teamPerformance.summary?.team_performance?.length) || 0 + '%'}
+                value={(teamPerformance.summary?.team_performance?.reduce((acc, emp) =>
+                  acc + (emp.break_performance?.completion_rate || 0), 0) /
+                  Math.max(1, teamPerformance.summary?.team_performance?.length) || 0).toFixed(2) + '%'}
                 icon={Clock}
                 color="purple"
                 description="Last 7 days average"
                 change={2.3}
               />
-              
+
               <StatCard
                 title="Avg. Task Completion"
-                value={teamPerformance.summary?.team_performance?.reduce((acc, emp) => 
+                value={teamPerformance.summary?.team_performance?.reduce((acc, emp) =>
                   acc + (emp.task_performance?.completion_rate || 0), 0) / Math.max(1, teamPerformance.summary?.team_performance?.length) || 0 + '%'}
                 icon={Target}
                 color="orange"
@@ -525,20 +528,20 @@ export default function SupervisorDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData.performanceComparison}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                      <XAxis 
-                        dataKey="name" 
+                      <XAxis
+                        dataKey="name"
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                       />
-                      <YAxis 
+                      <YAxis
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                         domain={[0, 100]}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
+                      <Tooltip
+                        contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
                           borderRadius: '8px',
@@ -547,21 +550,21 @@ export default function SupervisorDashboard() {
                         formatter={(value) => [`${value}%`, 'Completion Rate']}
                       />
                       <Legend />
-                      <Bar 
-                        dataKey="breaks" 
-                        fill="#3b82f6" 
+                      <Bar
+                        dataKey="breaks"
+                        fill="#3b82f6"
                         radius={[4, 4, 0, 0]}
                         name="Break %"
                       />
-                      <Bar 
-                        dataKey="tasks" 
-                        fill="#10b981" 
+                      <Bar
+                        dataKey="tasks"
+                        fill="#10b981"
                         radius={[4, 4, 0, 0]}
                         name="Task %"
                       />
-                      <Bar 
-                        dataKey="attendance" 
-                        fill="#f59e0b" 
+                      <Bar
+                        dataKey="attendance"
+                        fill="#f59e0b"
                         radius={[4, 4, 0, 0]}
                         name="Attendance %"
                       />
@@ -579,20 +582,20 @@ export default function SupervisorDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData.performanceTrend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                      <XAxis 
-                        dataKey="day" 
+                      <XAxis
+                        dataKey="day"
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                       />
-                      <YAxis 
+                      <YAxis
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                         domain={[0, 100]}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
+                      <Tooltip
+                        contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
                           borderRadius: '8px',
@@ -601,10 +604,10 @@ export default function SupervisorDashboard() {
                         formatter={(value) => [`${value}%`, 'Performance']}
                       />
                       <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="avgPerformance" 
-                        stroke="#8b5cf6" 
+                      <Line
+                        type="monotone"
+                        dataKey="avgPerformance"
+                        stroke="#8b5cf6"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         activeDot={{ r: 6 }}
@@ -628,7 +631,7 @@ export default function SupervisorDashboard() {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {teamPerformance.summary?.team_performance?.slice(0, 6).map((employee, index) => (
-                  <EmployeePerformanceCard 
+                  <EmployeePerformanceCard
                     key={employee.employee_id || index}
                     employee={employee}
                     index={index}
@@ -651,12 +654,12 @@ export default function SupervisorDashboard() {
             <DashboardCard
               title="Detailed Team Performance"
               subtitle={teamPerformance.summary?.time_period || 'Last 7 days'}
-              action={
-                <button className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
-                  <Download className="w-4 h-4 inline mr-1" />
-                  Export Report
-                </button>
-              }
+              // action={
+              //   <button className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
+              //     <Download className="w-4 h-4 inline mr-1" />
+              //     Export Report
+              //   </button>
+              // }
             >
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -688,13 +691,13 @@ export default function SupervisorDashboard() {
                       const taskRate = employee.task_performance?.completion_rate || 0;
                       const attendanceRate = employee.attendance?.attendance_rate || 0;
                       const overallScore = (breakRate + taskRate + attendanceRate) / 3;
-                      
+
                       const getScoreColor = (score) => {
                         if (score >= 90) return 'text-emerald-700 bg-emerald-50';
                         if (score >= 70) return 'text-yellow-700 bg-yellow-50';
                         return 'text-rose-700 bg-rose-50';
                       };
-                      
+
                       return (
                         <tr key={employee.employee_id || index} className="hover:bg-gray-50">
                           <td className="px-4 py-3">
@@ -716,8 +719,8 @@ export default function SupervisorDashboard() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-blue-600 h-2 rounded-full" 
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full"
                                   style={{ width: `${breakRate}%` }}
                                 />
                               </div>
@@ -729,8 +732,8 @@ export default function SupervisorDashboard() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-emerald-600 h-2 rounded-full" 
+                                <div
+                                  className="bg-emerald-600 h-2 rounded-full"
                                   style={{ width: `${taskRate}%` }}
                                 />
                               </div>
@@ -742,8 +745,8 @@ export default function SupervisorDashboard() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-purple-600 h-2 rounded-full" 
+                                <div
+                                  className="bg-purple-600 h-2 rounded-full"
                                   style={{ width: `${attendanceRate}%` }}
                                 />
                               </div>
@@ -760,7 +763,7 @@ export default function SupervisorDashboard() {
                         </tr>
                       );
                     })}
-                    
+
                     {(!teamPerformance.summary?.team_performance || teamPerformance.summary.team_performance.length === 0) && (
                       <tr>
                         <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
@@ -783,8 +786,8 @@ export default function SupervisorDashboard() {
                       <span className="text-sm text-gray-700 truncate">{emp.employee_name}</span>
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
                             style={{ width: `${emp.break_performance?.completion_rate || 0}%` }}
                           />
                         </div>
@@ -804,8 +807,8 @@ export default function SupervisorDashboard() {
                       <span className="text-sm text-gray-700 truncate">{emp.employee_name}</span>
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-emerald-600 h-2 rounded-full" 
+                          <div
+                            className="bg-emerald-600 h-2 rounded-full"
                             style={{ width: `${emp.task_performance?.completion_rate || 0}%` }}
                           />
                         </div>
@@ -822,43 +825,41 @@ export default function SupervisorDashboard() {
                 <div className="space-y-4">
                   {[...(teamPerformance.summary?.team_performance || [])]
                     .sort((a, b) => {
-                      const scoreA = (a.break_performance?.completion_rate || 0) + 
-                                   (a.task_performance?.completion_rate || 0) + 
-                                   (a.attendance?.attendance_rate || 0);
-                      const scoreB = (b.break_performance?.completion_rate || 0) + 
-                                   (b.task_performance?.completion_rate || 0) + 
-                                   (b.attendance?.attendance_rate || 0);
+                      const scoreA = (a.break_performance?.completion_rate || 0) +
+                        (a.task_performance?.completion_rate || 0) +
+                        (a.attendance?.attendance_rate || 0);
+                      const scoreB = (b.break_performance?.completion_rate || 0) +
+                        (b.task_performance?.completion_rate || 0) +
+                        (b.attendance?.attendance_rate || 0);
                       return scoreB - scoreA;
                     })
                     .slice(0, 3)
                     .map((emp, idx) => (
                       <div key={idx} className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          idx === 0 ? 'bg-yellow-100 text-yellow-800' :
-                          idx === 1 ? 'bg-gray-100 text-gray-800' :
-                          'bg-orange-100 text-orange-800'
-                        }`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${idx === 0 ? 'bg-yellow-100 text-yellow-800' :
+                            idx === 1 ? 'bg-gray-100 text-gray-800' :
+                              'bg-orange-100 text-orange-800'
+                          }`}>
                           <span className="font-bold">{idx + 1}</span>
                         </div>
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{emp.employee_name}</div>
                           <div className="text-xs text-gray-500">Overall Score: {(
-                            (emp.break_performance?.completion_rate || 0) + 
-                            (emp.task_performance?.completion_rate || 0) + 
+                            (emp.break_performance?.completion_rate || 0) +
+                            (emp.task_performance?.completion_rate || 0) +
                             (emp.attendance?.attendance_rate || 0)
                           ) / 3}%</div>
                         </div>
-                        <Award className={`w-5 h-5 ${
-                          idx === 0 ? 'text-yellow-500' :
-                          idx === 1 ? 'text-gray-500' :
-                          'text-orange-500'
-                        }`} />
+                        <Award className={`w-5 h-5 ${idx === 0 ? 'text-yellow-500' :
+                            idx === 1 ? 'text-gray-500' :
+                              'text-orange-500'
+                          }`} />
                       </div>
                     ))}
                 </div>
               </DashboardCard>
             </div>
-          
+
           </div>
         )}
 
@@ -917,7 +918,7 @@ export default function SupervisorDashboard() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-900">
-                            {employee.first_login_time ? 
+                            {employee.first_login_time ?
                               new Date(employee.first_login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
                               '--:--'
                             }
@@ -925,7 +926,7 @@ export default function SupervisorDashboard() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-900">
-                            {employee.last_logout_time ? 
+                            {employee.last_logout_time ?
                               new Date(employee.last_logout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
                               '--:--'
                             }
@@ -937,8 +938,8 @@ export default function SupervisorDashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <AttendanceStatusBadge 
-                            status={employee.status} 
+                          <AttendanceStatusBadge
+                            status={employee.status}
                             isDayOff={employee.is_day_off}
                           />
                         </td>
@@ -950,7 +951,7 @@ export default function SupervisorDashboard() {
                         </td>
                       </tr>
                     ))}
-                    
+
                     {(!teamAttendance.summary?.attendance_details || teamAttendance.summary.attendance_details.length === 0) && (
                       <tr>
                         <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
@@ -991,8 +992,8 @@ export default function SupervisorDashboard() {
               <DashboardCard title="Average Hours">
                 <div className="text-center py-6">
                   <div className="text-4xl font-bold text-gray-900 mb-2">
-                    {teamAttendance.summary?.attendance_details?.reduce((acc, emp) => 
-                      acc + (emp.hours_worked || 0), 0) / Math.max(1, teamAttendance.summary?.attendance_details?.filter(e => e.hours_worked).length) || 0} 
+                    {teamAttendance.summary?.attendance_details?.reduce((acc, emp) =>
+                      acc + (emp.hours_worked || 0), 0) / Math.max(1, teamAttendance.summary?.attendance_details?.filter(e => e.hours_worked).length) || 0}
                   </div>
                   <div className="text-sm text-gray-500">
                     Average hours worked
@@ -1023,7 +1024,7 @@ export default function SupervisorDashboard() {
             </div>
           </div>
         )}
-    
+
 
         {/* Footer */}
         <div className="mt-8 pt-8 border-t border-gray-200">
@@ -1032,7 +1033,7 @@ export default function SupervisorDashboard() {
               <p>Data as of {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
               <p className="mt-1">Supervisor ID: {user?.emp_number || 'SUP'}</p>
             </div>
-            
+
             <div className="text-sm text-gray-500">
               <p>Team Management Dashboard • EMS Supervisor v2.0</p>
             </div>

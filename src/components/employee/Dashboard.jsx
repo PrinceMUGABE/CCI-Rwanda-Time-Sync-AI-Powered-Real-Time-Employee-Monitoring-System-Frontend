@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  User, TrendingUp, Clock, AlertOctagon, RefreshCw, 
+import {
+  User, TrendingUp, Clock, AlertOctagon, RefreshCw,
   Activity, BarChart3, PieChart, Calendar, Bell,
   ChevronRight, Loader2, AlertTriangle, CheckCircle,
   Target, Zap, TrendingDown, ArrowUpRight, ArrowDownRight,
@@ -12,7 +12,7 @@ import {
   Clock3, Target as TargetIcon, TrendingUp as TrendingUpIcon,
   Percent, Award as AwardIcon, Activity as ActivityIcon
 } from 'lucide-react';
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart as RechartsPie, Pie, Cell, LineChart, Line, AreaChart, Area,
   RadialBarChart, RadialBar
@@ -20,6 +20,7 @@ import {
 
 // API Service for Employee
 const apiService = {
+  // Existing methods...
   async fetchEmployeeDashboard() {
     const response = await fetch('http://127.0.0.1:8000/report/employee/dashboard/', {
       headers: {
@@ -27,60 +28,87 @@ const apiService = {
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch employee dashboard data');
     const data = await response.json();
-    console.log('📊 Employee Dashboard Data:', data.summary);
     return data;
   },
 
   async fetchEmployeeBreakSchedule(date) {
     const params = new URLSearchParams();
     if (date) params.append('date', date);
-    
+
     const response = await fetch(`http://127.0.0.1:8000/report/employee/breaks/?${params}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch break schedule');
     const data = await response.json();
-    console.log('⏰ Employee Break Schedule:', data.summary);
     return data;
   },
 
   async fetchEmployeeTaskSchedule(date) {
     const params = new URLSearchParams();
     if (date) params.append('date', date);
-    
+
     const response = await fetch(`http://127.0.0.1:8000/report/employee/tasks/?${params}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch task schedule');
     const data = await response.json();
-    console.log('✅ Employee Task Schedule:', data.summary);
     return data;
   },
 
   async fetchEmployeeActivityLog(days = 7) {
     const params = new URLSearchParams({ days });
-    
+
     const response = await fetch(`http://127.0.0.1:8000/report/employee/activities/?${params}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!response.ok) throw new Error('Failed to fetch activity log');
     const data = await response.json();
-    console.log('📝 Employee Activity Log:', data.summary);
+    return data;
+  },
+
+  // NEW: Add performance endpoints
+  async fetchEmployeeWeeklyPerformance(weekOffset = 0) {
+    const params = new URLSearchParams({ week: weekOffset });
+
+    const response = await fetch(`http://127.0.0.1:8000/report/employee/performance/weekly/?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch weekly performance');
+    const data = await response.json();
+    console.log('📊 Employee Weekly Performance:', data.summary);
+    return data;
+  },
+
+  async fetchEmployeeAllTimePerformance() {
+    const response = await fetch('http://127.0.0.1:8000/report/employee/performance/all-time/', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch all-time performance');
+    const data = await response.json();
+    console.log('📈 Employee All-time Performance:', data.summary);
     return data;
   }
 };
@@ -101,7 +129,7 @@ const EmployeeStatCard = ({ title, value, icon: Icon, color, trend, change, desc
   const TrendIcon = isPositive ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className={`bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group ${onClick ? 'hover:border-gray-300' : ''}`}
     >
@@ -147,7 +175,7 @@ const DashboardCard = ({ title, subtitle, children, className, action }) => (
 
 // Task Status Badge
 const TaskStatusBadge = ({ status }) => {
-  switch(status?.toLowerCase()) {
+  switch (status?.toLowerCase()) {
     case 'completed':
       return (
         <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">
@@ -177,7 +205,7 @@ const TaskStatusBadge = ({ status }) => {
 
 // Break Status Badge
 const BreakStatusBadge = ({ status }) => {
-  switch(status?.toLowerCase()) {
+  switch (status?.toLowerCase()) {
     case 'completed':
       return (
         <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">
@@ -214,7 +242,7 @@ const TaskCard = ({ task, index }) => {
 
   const isCurrent = task.status?.toLowerCase() === 'in_progress';
   const isUpcoming = task.status?.toLowerCase() === 'pending';
-  
+
   return (
     <div className={`bg-white border ${isCurrent ? 'border-blue-200 bg-blue-50/30' : isUpcoming ? 'border-yellow-200' : 'border-gray-200'} rounded-xl p-4 hover:shadow-md transition-shadow`}>
       <div className="flex items-start justify-between mb-3">
@@ -249,11 +277,11 @@ const TaskCard = ({ task, index }) => {
           )}
         </div>
       </div>
-      
+
       <div className="text-sm text-gray-600 mt-2">
         Assigned on: {task.assignment_date ? new Date(task.assignment_date).toLocaleDateString() : 'N/A'}
       </div>
-      
+
       {task.notes && (
         <div className="text-sm text-gray-500 mt-2 italic">
           "{task.notes}"
@@ -279,7 +307,7 @@ const BreakCard = ({ breakItem, index }) => {
 
   const isActive = breakItem.status?.toLowerCase() === 'in_progress';
   const isScheduled = breakItem.status?.toLowerCase() === 'scheduled';
-  
+
   return (
     <div className={`bg-white border ${isActive ? 'border-green-200 bg-green-50/30' : 'border-gray-200'} rounded-xl p-4 hover:shadow-md transition-shadow`}>
       <div className="flex items-start justify-between mb-3">
@@ -310,19 +338,18 @@ const BreakCard = ({ breakItem, index }) => {
           )}
         </div>
       </div>
-      
+
       <div className="flex items-center gap-4 text-sm text-gray-600">
         {breakItem.start_punctuality && (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            breakItem.start_punctuality === 'on_time' ? 'bg-emerald-100 text-emerald-800' :
-            breakItem.start_punctuality === 'early' ? 'bg-blue-100 text-blue-800' :
-            'bg-rose-100 text-rose-800'
-          }`}>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${breakItem.start_punctuality === 'on_time' ? 'bg-emerald-100 text-emerald-800' :
+              breakItem.start_punctuality === 'early' ? 'bg-blue-100 text-blue-800' :
+                'bg-rose-100 text-rose-800'
+            }`}>
             {breakItem.start_punctuality === 'on_time' ? 'On Time' :
-             breakItem.start_punctuality === 'early' ? 'Early' : 'Late'}
+              breakItem.start_punctuality === 'early' ? 'Early' : 'Late'}
           </span>
         )}
-        
+
         {breakItem.duration && (
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
@@ -375,26 +402,33 @@ export default function EmployeeDashboard() {
   const [breakSchedule, setBreakSchedule] = useState(null);
   const [taskSchedule, setTaskSchedule] = useState(null);
   const [activityLog, setActivityLog] = useState(null);
+  const [weeklyPerformance, setWeeklyPerformance] = useState(null);
+  const [allTimePerformance, setAllTimePerformance] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeView, setActiveView] = useState('overview'); // overview, tasks, breaks, activity
-  
+  const [activeView, setActiveView] = useState('overview'); // overview, tasks, breaks, activity, performance
+
   const fetchAllData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const [dashboard, breaks, tasks, activities] = await Promise.all([
+      // Fetch all data in parallel
+      const [dashboard, breaks, tasks, activities, weekly, allTime] = await Promise.all([
         apiService.fetchEmployeeDashboard(),
         apiService.fetchEmployeeBreakSchedule(selectedDate),
         apiService.fetchEmployeeTaskSchedule(selectedDate),
-        apiService.fetchEmployeeActivityLog(7)
+        apiService.fetchEmployeeActivityLog(7),
+        apiService.fetchEmployeeWeeklyPerformance(0), // Current week
+        apiService.fetchEmployeeAllTimePerformance()
       ]);
-      
+
       setDashboardData(dashboard);
       setBreakSchedule(breaks);
       setTaskSchedule(tasks);
       setActivityLog(activities);
-      
+      setWeeklyPerformance(weekly);
+      setAllTimePerformance(allTime);
+
       // Log summary data to console
       console.log('📋 EMPLOYEE DASHBOARD SUMMARY:');
       console.log('============================');
@@ -404,27 +438,24 @@ export default function EmployeeDashboard() {
       console.log(`   Shift: ${dashboard.summary?.shift || 'Not assigned'}`);
       console.log(`   Day Off: ${dashboard.summary?.day_off || 'Not set'}`);
       console.log('');
-      console.log('📊 Today\'s Performance:');
-      console.log(`   Break Completion: ${dashboard.summary?.today_summary?.break_completion_rate || 0}%`);
-      console.log(`   Task Completion: ${dashboard.summary?.today_summary?.task_completion_rate || 0}%`);
-      console.log(`   Breaks Scheduled: ${breaks.summary?.total_breaks || 0}`);
-      console.log(`   Breaks Completed: ${breaks.summary?.completed_breaks || 0}`);
+      console.log('📊 Weekly Performance:');
+      console.log(`   Attendance Rate: ${weekly.summary?.attendance_rate || 0}%`);
+      console.log(`   Break Completion: ${weekly.summary?.break_completion_rate || 0}%`);
+      console.log(`   Task Completion: ${weekly.summary?.task_completion_rate || 0}%`);
+      console.log(`   Punctuality Score: ${weekly.summary?.overall_punctuality || 0}%`);
+      console.log(`   Overall Rating: ${weekly.summary?.performance_rating || 'N/A'}`);
       console.log('');
-      console.log('✅ Tasks Today:');
-      console.log(`   Total Tasks: ${tasks.summary?.total_tasks || 0}`);
-      console.log(`   Completed: ${tasks.summary?.completed_tasks || 0}`);
-      console.log(`   In Progress: ${tasks.summary?.active_tasks || 0}`);
-      console.log('');
-      console.log('📝 Recent Activity:');
-      console.log(`   Total Activities: ${activities.summary?.activity_summary?.total_activities || 0}`);
-      console.log(`   Logins: ${activities.summary?.activity_summary?.logins || 0}`);
-      console.log(`   Logouts: ${activities.summary?.activity_summary?.logouts || 0}`);
+      console.log('📈 All-time Performance:');
+      console.log(`   Overall Score: ${allTime.summary?.overall_performance_score || 0}/100`);
+      console.log(`   Attendance Rate: ${allTime.summary?.overall_attendance_rate || 0}%`);
+      console.log(`   Break Completion: ${allTime.summary?.overall_break_completion_rate || 0}%`);
+      console.log(`   Task Completion: ${allTime.summary?.overall_task_completion_rate || 0}%`);
       console.log('============================');
-      
+
     } catch (err) {
       console.error('Error fetching employee dashboard data:', err);
       setError(err.message || 'Failed to load dashboard data');
-      
+
       if (err.message.includes('401') || err.message.includes('403')) {
         setTimeout(() => logout(), 2000);
       }
@@ -435,65 +466,123 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     fetchAllData();
-    
+
     // Auto-refresh every 5 minutes
     const interval = setInterval(fetchAllData, 300000);
     return () => clearInterval(interval);
   }, [selectedDate]);
 
-  // Prepare chart data
+  // Prepare chart data from real performance data
   const prepareChartData = () => {
-    if (!dashboardData || !taskSchedule || !breakSchedule) return {};
+    if (!weeklyPerformance || !allTimePerformance || !dashboardData) return {};
 
-    // Performance comparison for the week (simulated)
-    const weeklyPerformance = [
-      { day: 'Mon', breakRate: 85, taskRate: 90, attendance: 100 },
-      { day: 'Tue', breakRate: 90, taskRate: 85, attendance: 100 },
-      { day: 'Wed', breakRate: 75, taskRate: 88, attendance: 100 },
-      { day: 'Thu', breakRate: 95, taskRate: 92, attendance: 100 },
-      { day: 'Fri', breakRate: 80, taskRate: 87, attendance: 100 },
-      { day: 'Sat', breakRate: 70, taskRate: 75, attendance: 100 },
-      { day: 'Sun', breakRate: 65, taskRate: 70, attendance: 100 }
-    ];
+    // Weekly performance chart data
+    const weeklyChartData = weeklyPerformance.summary?.daily_performance?.map(day => ({
+      day: day.day_of_week.substring(0, 3), // Short day name
+      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      breakRate: day.breaks?.completion_rate || 0,
+      taskRate: day.tasks?.completion_rate || 0,
+      punctuality: day.punctuality_score || 0,
+      hoursWorked: day.hours_worked || 0,
+      attendance: day.attendance_status === 'Present' ? 100 : 0
+    })) || [];
 
-    // Task completion breakdown
+    // Task completion breakdown (from task schedule)
     const taskBreakdown = [
-      { name: 'Completed', value: taskSchedule.summary?.completed_tasks || 0 },
-      { name: 'In Progress', value: taskSchedule.summary?.active_tasks || 0 },
-      { name: 'Pending', value: taskSchedule.summary?.upcoming_tasks || 0 }
+      {
+        name: 'Completed',
+        value: taskSchedule?.summary?.completed_tasks || 0,
+        color: '#10B981'
+      },
+      {
+        name: 'In Progress',
+        value: taskSchedule?.summary?.active_tasks || 0,
+        color: '#3B82F6'
+      },
+      {
+        name: 'Pending',
+        value: taskSchedule?.summary?.upcoming_tasks || 0,
+        color: '#F59E0B'
+      }
     ];
 
     // Break completion breakdown
     const breakBreakdown = [
-      { name: 'Completed', value: breakSchedule.summary?.completed_breaks || 0 },
-      { name: 'Scheduled', value: (breakSchedule.summary?.total_breaks || 0) - (breakSchedule.summary?.completed_breaks || 0) }
+      {
+        name: 'Completed',
+        value: breakSchedule?.summary?.completed_breaks || 0,
+        color: '#10B981'
+      },
+      {
+        name: 'Scheduled',
+        value: (breakSchedule?.summary?.total_breaks || 0) - (breakSchedule?.summary?.completed_breaks || 0),
+        color: '#F59E0B'
+      }
     ];
 
-    // Today's activity breakdown
-    const todayActivity = {
-      tasks: taskSchedule.summary?.total_tasks || 0,
-      completedTasks: taskSchedule.summary?.completed_tasks || 0,
-      breaks: breakSchedule.summary?.total_breaks || 0,
-      completedBreaks: breakSchedule.summary?.completed_breaks || 0
+    // Performance metrics for cards
+    const performanceMetrics = {
+      weeklyScore: weeklyPerformance.summary?.overall_score || 0,
+      weeklyRating: weeklyPerformance.summary?.performance_rating || 'N/A',
+      weeklyColor: weeklyPerformance.summary?.rating_color || '#6B7280',
+
+      allTimeScore: allTimePerformance.summary?.overall_performance_score || 0,
+      allTimeRating: allTimePerformance.summary?.performance_rating || 'N/A',
+
+      attendanceRate: weeklyPerformance.summary?.attendance_rate || 0,
+      breakCompletion: weeklyPerformance.summary?.break_completion_rate || 0,
+      taskCompletion: weeklyPerformance.summary?.task_completion_rate || 0,
+      punctuality: weeklyPerformance.summary?.overall_punctuality || 0,
+      avgHoursPerDay: weeklyPerformance.summary?.average_hours_per_day || 0,
+      totalHours: weeklyPerformance.summary?.total_hours_worked || 0,
+
+      // Daily breakdown for detailed view
+      dailyPerformance: weeklyPerformance.summary?.daily_performance || []
     };
 
     return {
-      weeklyPerformance,
+      weeklyChartData,
       taskBreakdown,
       breakBreakdown,
-      todayActivity
+      performanceMetrics,
+      allTimeStats: {
+        totalDays: allTimePerformance.summary?.total_days_employed || 0,
+        presentDays: allTimePerformance.summary?.total_present_days || 0,
+        breakCompletion: allTimePerformance.summary?.overall_break_completion_rate || 0,
+        taskCompletion: allTimePerformance.summary?.overall_task_completion_rate || 0,
+        loginPunctuality: allTimePerformance.summary?.login_punctuality_rate || 0,
+        breakPunctuality: allTimePerformance.summary?.break_punctuality_score || 0
+      }
     };
   };
 
   const chartData = prepareChartData();
   const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
 
+  // Function to get performance badge styling
+  const getPerformanceBadge = (rating) => {
+    switch (rating?.toLowerCase()) {
+      case 'excellent':
+        return { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Excellent' };
+      case 'good':
+        return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Good' };
+      case 'average':
+        return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Average' };
+      case 'needs improvement':
+        return { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Needs Improvement' };
+      case 'poor':
+        return { bg: 'bg-red-100', text: 'text-red-800', label: 'Poor' };
+      default:
+        return { bg: 'bg-gray-100', text: 'text-gray-800', label: rating || 'N/A' };
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorState message={error} onRetry={fetchAllData} />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-emerald-50">
-      {/* Header */}
+      {/* Header - Updated with Performance tab */}
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between py-4">
@@ -521,10 +610,20 @@ export default function EmployeeDashboard() {
                       </span>
                     </>
                   )}
+                  {weeklyPerformance?.summary?.performance_rating && (
+                    <>
+                      <span className="hidden sm:inline text-gray-400">•</span>
+                      <span className="text-sm text-gray-600">
+                        This Week: <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPerformanceBadge(weeklyPerformance.summary.performance_rating).bg} ${getPerformanceBadge(weeklyPerformance.summary.performance_rating).text}`}>
+                          {getPerformanceBadge(weeklyPerformance.summary.performance_rating).label}
+                        </span>
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
@@ -535,42 +634,50 @@ export default function EmployeeDashboard() {
                   className="bg-transparent border-none focus:outline-none text-sm"
                 />
               </div>
-              
+
               <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
                 <button
                   onClick={() => setActiveView('overview')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'overview' 
-                    ? 'bg-white text-emerald-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'overview'
+                    ? 'bg-white text-emerald-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Overview
                 </button>
                 <button
                   onClick={() => setActiveView('tasks')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'tasks' 
-                    ? 'bg-white text-emerald-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'tasks'
+                    ? 'bg-white text-emerald-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Tasks
                 </button>
                 <button
                   onClick={() => setActiveView('breaks')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'breaks' 
-                    ? 'bg-white text-emerald-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'breaks'
+                    ? 'bg-white text-emerald-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Breaks
                 </button>
                 <button
                   onClick={() => setActiveView('activity')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'activity' 
-                    ? 'bg-white text-emerald-600 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'activity'
+                    ? 'bg-white text-emerald-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   Activity
                 </button>
+                <button
+                  onClick={() => setActiveView('performance')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeView === 'performance'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  Performance
+                </button>
               </div>
-              
+
               <button
                 onClick={fetchAllData}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -597,131 +704,153 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {/* Overview View */}
+        {/* Overview View - Updated with real performance data */}
         {activeView === 'overview' && (
           <>
             {/* Quick Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <EmployeeStatCard
-                title="Today's Tasks"
-                value={chartData.todayActivity.tasks}
-                icon={CheckSquare}
-                color="blue"
-                description={`${chartData.todayActivity.completedTasks} completed`}
-                onClick={() => setActiveView('tasks')}
+                title="Weekly Performance"
+                value={`${chartData.performanceMetrics?.weeklyScore || 0}/100`}
+                icon={AwardIcon}
+                color={weeklyPerformance?.summary?.rating_color ? 'green' : 'blue'}
+                description={chartData.performanceMetrics?.weeklyRating}
+                onClick={() => setActiveView('performance')}
               />
-              
-              <EmployeeStatCard
-                title="Today's Breaks"
-                value={chartData.todayActivity.breaks}
-                icon={Coffee}
-                color="green"
-                description={`${chartData.todayActivity.completedBreaks} completed`}
-                onClick={() => setActiveView('breaks')}
-              />
-              
+
               <EmployeeStatCard
                 title="Task Completion"
-                value={`${dashboardData.summary?.today_summary?.task_completion_rate || 0}%`}
+                value={`${chartData.performanceMetrics?.taskCompletion || 0}%`}
                 icon={TargetIcon}
                 color="purple"
-                description="Today's rate"
+                description="This week"
                 change={5.2}
               />
-              
+
               <EmployeeStatCard
                 title="Break Completion"
-                value={`${dashboardData.summary?.today_summary?.break_completion_rate || 0}%`}
+                value={`${chartData.performanceMetrics?.breakCompletion || 0}%`}
                 icon={Clock}
-                color="orange"
-                description="Today's rate"
+                color="green"
+                description="This week"
                 change={3.8}
+              />
+
+              <EmployeeStatCard
+                title="Attendance"
+                value={`${chartData.performanceMetrics?.attendanceRate || 0}%`}
+                icon={User}
+                color="blue"
+                description="This week"
               />
             </div>
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Weekly Performance */}
+              {/* Weekly Performance Chart */}
               <DashboardCard
-                title="Weekly Performance"
-                subtitle="Break vs Task completion rates"
+                title="Weekly Performance Trend"
+                subtitle={`${weeklyPerformance?.summary?.week_start_date ? new Date(weeklyPerformance.summary.week_start_date).toLocaleDateString() : ''} - ${weeklyPerformance?.summary?.week_end_date ? new Date(weeklyPerformance.summary.week_end_date).toLocaleDateString() : ''}`}
               >
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData.weeklyPerformance}>
+                    <LineChart data={chartData.weeklyChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                      <XAxis 
-                        dataKey="day" 
+                      <XAxis
+                        dataKey="day"
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                       />
-                      <YAxis 
+                      <YAxis
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#6b7280', fontSize: 12 }}
                         domain={[0, 100]}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
+                      <Tooltip
+                        contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
                           borderRadius: '8px',
                           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                         }}
-                        formatter={(value) => [`${value}%`, 'Completion Rate']}
+                        formatter={(value) => [`${value}%`, 'Rate']}
+                        labelFormatter={(label, items) => {
+                          const item = items[0]?.payload;
+                          return item?.date || label;
+                        }}
                       />
                       <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="breakRate" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="breakRate"
+                        stroke="#10b981"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         activeDot={{ r: 6 }}
-                        name="Break %"
+                        name="Break Completion"
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="taskRate" 
-                        stroke="#3b82f6" 
+                      <Line
+                        type="monotone"
+                        dataKey="taskRate"
+                        stroke="#3b82f6"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         activeDot={{ r: 6 }}
-                        name="Task %"
+                        name="Task Completion"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="punctuality"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="Punctuality"
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               </DashboardCard>
 
-              {/* Task Breakdown */}
+              {/* Performance Breakdown */}
               <DashboardCard
-                title="Task Status Distribution"
-                subtitle="Today's task completion overview"
+                title="Performance Metrics"
+                subtitle="Current week breakdown"
               >
-                <div className="h-72 flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPie>
-                      <Pie
-                        data={chartData.taskBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {chartData.taskBreakdown.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value) => [`${value} tasks`, 'Count']}
-                      />
-                    </RechartsPie>
-                  </ResponsiveContainer>
+                <div className="space-y-4">
+                  {chartData.performanceMetrics?.dailyPerformance?.map((day, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <CalendarDays className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">{day.day_of_week}</h4>
+                          <p className="text-sm text-gray-500">{new Date(day.date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className={`text-sm px-2 py-1 rounded-full ${day.attendance_status === 'Present' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {day.attendance_status}
+                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-500">Tasks:</span>
+                          <span className="text-xs font-medium">{day.tasks?.completion_rate || 0}%</span>
+                          <span className="text-xs text-gray-500">Breaks:</span>
+                          <span className="text-xs font-medium">{day.breaks?.completion_rate || 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!chartData.performanceMetrics?.dailyPerformance || chartData.performanceMetrics.dailyPerformance.length === 0) && (
+                    <div className="text-center py-6">
+                      <BarChart2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No performance data available for this week</p>
+                    </div>
+                  )}
                 </div>
               </DashboardCard>
             </div>
@@ -733,20 +862,23 @@ export default function EmployeeDashboard() {
                 title="Upcoming Tasks"
                 subtitle="Next tasks to complete"
                 action={
-                  <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  <button
+                    onClick={() => setActiveView('tasks')}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
                     View All
                   </button>
                 }
               >
                 <div className="space-y-4">
-                  {taskSchedule.summary?.task_schedule?.slice(0, 3).map((task, index) => (
-                    <TaskCard 
+                  {taskSchedule?.summary?.task_schedule?.slice(0, 3).map((task, index) => (
+                    <TaskCard
                       key={task.id || index}
                       task={task}
                       index={index}
                     />
                   ))}
-                  {(!taskSchedule.summary?.task_schedule || taskSchedule.summary.task_schedule.length === 0) && (
+                  {(!taskSchedule?.summary?.task_schedule || taskSchedule.summary.task_schedule.length === 0) && (
                     <div className="text-center py-6">
                       <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500">No tasks scheduled for today</p>
@@ -760,20 +892,23 @@ export default function EmployeeDashboard() {
                 title="Upcoming Breaks"
                 subtitle="Today's break schedule"
                 action={
-                  <button className="text-sm text-emerald-600 hover:text-emerald-800 font-medium">
+                  <button
+                    onClick={() => setActiveView('breaks')}
+                    className="text-sm text-emerald-600 hover:text-emerald-800 font-medium"
+                  >
                     View All
                   </button>
                 }
               >
                 <div className="space-y-4">
-                  {breakSchedule.summary?.break_schedule?.slice(0, 3).map((breakItem, index) => (
-                    <BreakCard 
+                  {breakSchedule?.summary?.break_schedule?.slice(0, 3).map((breakItem, index) => (
+                    <BreakCard
                       key={breakItem.id || index}
                       breakItem={breakItem}
                       index={index}
                     />
                   ))}
-                  {(!breakSchedule.summary?.break_schedule || breakSchedule.summary.break_schedule.length === 0) && (
+                  {(!breakSchedule?.summary?.break_schedule || breakSchedule.summary.break_schedule.length === 0) && (
                     <div className="text-center py-6">
                       <Coffee className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500">No breaks scheduled for today</p>
@@ -782,45 +917,284 @@ export default function EmployeeDashboard() {
                 </div>
               </DashboardCard>
             </div>
-
-            {/* Notifications & Updates */}
-            <DashboardCard
-              title="Notifications & Updates"
-              subtitle="Latest system notifications"
-              className="mt-6"
-            >
-              <div className="space-y-3">
-                {dashboardData.summary?.notifications && dashboardData.summary.notifications.length > 0 ? (
-                  dashboardData.summary.notifications.slice(0, 5).map((notification, index) => (
-                    <div key={notification.id || index} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-                      <div className={`p-2 rounded-lg ${notification.is_read ? 'bg-gray-100' : 'bg-blue-100'}`}>
-                        <Bell className={`w-4 h-4 ${notification.is_read ? 'text-gray-500' : 'text-blue-600'}`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                          <span className="text-xs text-gray-500">
-                            {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                      </div>
-                      {!notification.is_read && (
-                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6">
-                    <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No notifications</p>
-                  </div>
-                )}
-              </div>
-            </DashboardCard>
           </>
         )}
 
+        {/* Performance View - NEW SECTION */}
+        {activeView === 'performance' && (
+          <div className="space-y-6">
+            {/* Performance Overview */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Weekly Performance Card */}
+              <DashboardCard
+                title="Weekly Performance"
+                subtitle={`Week of ${weeklyPerformance?.summary?.week_start_date ? new Date(weeklyPerformance.summary.week_start_date).toLocaleDateString() : 'This week'}`}
+              >
+                <div className="text-center py-6">
+                  <div className="relative inline-flex">
+                    <div className="w-32 h-32 rounded-full border-8 border-gray-200 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className={`text-4xl font-bold mb-1`} style={{ color: weeklyPerformance?.summary?.rating_color || '#6B7280' }}>
+                          {chartData.performanceMetrics?.weeklyScore || 0}
+                        </div>
+                        <div className="text-sm text-gray-500">/100</div>
+                      </div>
+                    </div>
+                    {/* <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <Award className="w-8 h-8" style={{ color: weeklyPerformance?.summary?.rating_color || '#6B7280' }} />
+                    </div> */}
+                  </div>
+                  <div className="mt-4">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPerformanceBadge(chartData.performanceMetrics?.weeklyRating).bg} ${getPerformanceBadge(chartData.performanceMetrics?.weeklyRating).text}`}>
+                      {getPerformanceBadge(chartData.performanceMetrics?.weeklyRating).label}
+                    </span>
+                  </div>
+                </div>
+              </DashboardCard>
+
+              {/* All-time Performance Card */}
+              <DashboardCard
+                title="All-time Performance"
+                subtitle={`Since ${allTimePerformance?.summary?.employment_start ? new Date(allTimePerformance.summary.employment_start).toLocaleDateString() : 'start'}`}
+              >
+                <div className="text-center py-6">
+                  <div className="relative inline-flex">
+                    <div className="w-32 h-32 rounded-full border-8 border-gray-200 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-4xl font-bold text-gray-900 mb-1">
+                          {chartData.allTimeStats?.taskCompletion || 0}%
+                        </div>
+                        <div className="text-sm text-gray-500">Task Completion</div>
+                      </div>
+                    </div>
+                    {/* <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <TrendingUpIcon className="w-8 h-8 text-emerald-600" />
+                    </div> */}
+                  </div>
+                  <div className="mt-4">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPerformanceBadge(chartData.performanceMetrics?.allTimeRating).bg} ${getPerformanceBadge(chartData.performanceMetrics?.allTimeRating).text}`}>
+                      {getPerformanceBadge(chartData.performanceMetrics?.allTimeRating).label}
+                    </span>
+                  </div>
+                </div>
+              </DashboardCard>
+
+              {/* Performance Metrics Card */}
+              <DashboardCard
+                title="Performance Metrics"
+                subtitle="Key performance indicators"
+              >
+                <div className="space-y-4 py-4">
+                  {[
+                    { label: 'Attendance Rate', value: chartData.performanceMetrics?.attendanceRate || 0, icon: User, color: 'text-blue-600' },
+                    { label: 'Task Completion', value: chartData.performanceMetrics?.taskCompletion || 0, icon: CheckSquare, color: 'text-emerald-600' },
+                    { label: 'Break Completion', value: chartData.performanceMetrics?.breakCompletion || 0, icon: Coffee, color: 'text-violet-600' },
+                    { label: 'Punctuality', value: chartData.performanceMetrics?.punctuality || 0, icon: Clock, color: 'text-orange-600' },
+                  ].map((metric, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${metric.color.replace('text', 'bg').replace('-600', '-100')}`}>
+                          <metric.icon className={`w-4 h-4 ${metric.color}`} />
+                        </div>
+                        <span className="text-sm text-gray-700">{metric.label}</span>
+                      </div>
+                      <span className="font-semibold text-gray-900">{metric.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </DashboardCard>
+            </div>
+
+            {/* Detailed Performance Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Weekly Breakdown Chart */}
+              <DashboardCard
+                title="Daily Performance Breakdown"
+                subtitle="This week's daily metrics"
+              >
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData.weeklyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis
+                        dataKey="day"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                        domain={[0, 100]}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value) => [`${value}%`, 'Rate']}
+                      />
+                      <Legend />
+                      <Bar
+                        dataKey="taskRate"
+                        name="Task Completion"
+                        fill="#3b82f6"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="breakRate"
+                        name="Break Completion"
+                        fill="#10b981"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </DashboardCard>
+
+              {/* All-time Stats */}
+              <DashboardCard
+                title="All-time Statistics"
+                subtitle="Performance since employment start"
+              >
+                <div className="space-y-6 py-4">
+                  {[
+                    {
+                      label: 'Total Days Employed',
+                      value: chartData.allTimeStats?.totalDays || 0,
+                      description: 'Days since joining'
+                    },
+                    {
+                      label: 'Days Present',
+                      value: chartData.allTimeStats?.presentDays || 0,
+                      description: 'Total attendance days'
+                    },
+                    {
+                      label: 'Overall Task Completion',
+                      value: chartData.allTimeStats?.taskCompletion || 0,
+                      description: 'All-time average'
+                    },
+                    {
+                      label: 'Overall Break Completion',
+                      value: chartData.allTimeStats?.breakCompletion || 0,
+                      description: 'All-time average'
+                    },
+                    {
+                      label: 'Login Punctuality',
+                      value: chartData.allTimeStats?.loginPunctuality || 0,
+                      description: 'On-time login rate'
+                    },
+                    {
+                      label: 'Break Punctuality',
+                      value: chartData.allTimeStats?.breakPunctuality || 0,
+                      description: 'On-time break starts'
+                    },
+                  ].map((stat, index) => (
+                    <div key={index} className="flex items-center justify-between pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{stat.label}</h4>
+                        <p className="text-sm text-gray-500">{stat.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-gray-900">
+                          {typeof stat.value === 'number' && stat.label.includes('Completion') || stat.label.includes('Punctuality') ?
+                            `${stat.value}%` : stat.value}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </DashboardCard>
+            </div>
+
+            {/* Daily Performance Table */}
+            <DashboardCard
+              title="Daily Performance Details"
+              subtitle="Click on a day to view details"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Day</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Tasks</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Breaks</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Hours</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartData.performanceMetrics?.dailyPerformance?.map((day, index) => (
+                      <tr
+                        key={index}
+                        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSelectedDate(day.date);
+                          setActiveView('tasks');
+                        }}
+                      >
+                        <td className="py-3 px-4">
+                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-4">{day.day_of_week}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${day.attendance_status === 'Present' ? 'bg-emerald-100 text-emerald-800' :
+                              day.attendance_status === 'Absent' ? 'bg-red-100 text-red-800' :
+                                'bg-blue-100 text-blue-800'
+                            }`}>
+                            {day.attendance_status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{day.tasks?.completion_rate || 0}%</span>
+                            <span className="text-sm text-gray-500">
+                              ({day.tasks?.completed || 0}/{day.tasks?.scheduled || 0})
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{day.breaks?.completion_rate || 0}%</span>
+                            <span className="text-sm text-gray-500">
+                              ({day.breaks?.completed || 0}/{day.breaks?.scheduled || 0})
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-medium">{day.hours_worked || 0}</span>
+                          <span className="text-sm text-gray-500 ml-1">hrs</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`font-bold ${day.punctuality_score >= 90 ? 'text-emerald-600' :
+                              day.punctuality_score >= 70 ? 'text-blue-600' :
+                                day.punctuality_score >= 50 ? 'text-yellow-600' :
+                                  'text-red-600'
+                            }`}>
+                            {day.punctuality_score || 0}/100
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {(!chartData.performanceMetrics?.dailyPerformance || chartData.performanceMetrics.dailyPerformance.length === 0) && (
+                      <tr>
+                        <td colSpan="7" className="py-8 text-center text-gray-500">
+                          No daily performance data available
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DashboardCard>
+          </div>
+        )}
         {/* Tasks View */}
         {activeView === 'tasks' && taskSchedule && (
           <div className="space-y-6">
@@ -829,26 +1203,26 @@ export default function EmployeeDashboard() {
               subtitle={`${taskSchedule.summary?.completed_tasks || 0} completed • ${taskSchedule.summary?.active_tasks || 0} in progress • ${taskSchedule.summary?.upcoming_tasks || 0} pending`}
               action={
                 <div className="flex items-center gap-3">
-                  <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                  {/* <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
                     <Download className="w-4 h-4 inline mr-1" />
                     Export
                   </button>
                   <button className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors">
                     <CheckCheck className="w-4 h-4 inline mr-1" />
                     Complete All
-                  </button>
+                  </button> */}
                 </div>
               }
             >
               <div className="space-y-4">
                 {taskSchedule.summary?.task_schedule?.map((task, index) => (
-                  <TaskCard 
+                  <TaskCard
                     key={task.id || index}
                     task={task}
                     index={index}
                   />
                 ))}
-                
+
                 {(!taskSchedule.summary?.task_schedule || taskSchedule.summary.task_schedule.length === 0) && (
                   <div className="text-center py-12">
                     <CheckSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -929,13 +1303,13 @@ export default function EmployeeDashboard() {
             >
               <div className="space-y-4">
                 {breakSchedule.summary?.break_schedule?.map((breakItem, index) => (
-                  <BreakCard 
+                  <BreakCard
                     key={breakItem.id || index}
                     breakItem={breakItem}
                     index={index}
                   />
                 ))}
-                
+
                 {(!breakSchedule.summary?.break_schedule || breakSchedule.summary.break_schedule.length === 0) && (
                   <div className="text-center py-12">
                     <Coffee className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -962,8 +1336,8 @@ export default function EmployeeDashboard() {
               <DashboardCard title="Punctuality Score">
                 <div className="text-center py-6">
                   <div className="text-4xl font-bold text-gray-900 mb-2">
-                    {breakSchedule.summary?.break_schedule?.filter(b => b.start_punctuality === 'on_time').length / 
-                     Math.max(1, breakSchedule.summary?.break_schedule?.length) * 100 || 0}%
+                    {breakSchedule.summary?.break_schedule?.filter(b => b.start_punctuality === 'on_time').length /
+                      Math.max(1, breakSchedule.summary?.break_schedule?.length) * 100 || 0}%
                   </div>
                   <div className="text-sm text-gray-500">
                     On-time break starts
@@ -997,11 +1371,10 @@ export default function EmployeeDashboard() {
               <div className="space-y-3">
                 {activityLog.summary?.activity_details?.map((activity, index) => (
                   <div key={activity.id || index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-lg">
-                    <div className={`p-2 rounded-lg ${
-                      activity.log_type === 'login' ? 'bg-blue-100' :
-                      activity.log_type === 'logout' ? 'bg-gray-100' :
-                      'bg-emerald-100'
-                    }`}>
+                    <div className={`p-2 rounded-lg ${activity.log_type === 'login' ? 'bg-blue-100' :
+                        activity.log_type === 'logout' ? 'bg-gray-100' :
+                          'bg-emerald-100'
+                      }`}>
                       {activity.log_type === 'login' ? (
                         <LogIn className="w-4 h-4 text-blue-600" />
                       ) : activity.log_type === 'logout' ? (
@@ -1025,10 +1398,9 @@ export default function EmployeeDashboard() {
                           {new Date(activity.actual_time).toLocaleDateString()}
                         </span>
                         {activity.status && (
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            activity.status === 'on_time' ? 'bg-emerald-100 text-emerald-700' :
-                            'bg-yellow-100 text-yellow-700'
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded-full ${activity.status === 'on_time' ? 'bg-emerald-100 text-emerald-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
                             {activity.status}
                           </span>
                         )}
@@ -1036,7 +1408,7 @@ export default function EmployeeDashboard() {
                     </div>
                   </div>
                 ))}
-                
+
                 {(!activityLog.summary?.activity_details || activityLog.summary.activity_details.length === 0) && (
                   <div className="text-center py-12">
                     <ActivityIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />

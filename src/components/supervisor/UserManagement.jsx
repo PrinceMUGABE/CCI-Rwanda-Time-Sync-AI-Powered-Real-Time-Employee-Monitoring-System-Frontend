@@ -53,6 +53,16 @@ export default function SupervisorUserManagement() {
   const [userTasks, setUserTasks] = useState([]);
   const [userLogs, setUserLogs] = useState([]);
 
+  const [userPerformance, setUserPerformance] = useState({
+    weekly: null,
+    allTime: null,
+    dashboard: null
+  });
+
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [selectedPerformanceTab, setSelectedPerformanceTab] = useState('summary');
+  const [performanceWeekOffset, setPerformanceWeekOffset] = useState(0);
+
   // Form states
   const [userForm, setUserForm] = useState({
     emp_number: '',
@@ -150,7 +160,7 @@ export default function SupervisorUserManagement() {
   const apiService = {
     users: {
       getUsers: async () => {
-        const response = await fetch(`${BASE_URL}/my-supervised-employees/`, {
+        const response = await fetch(`${BASE_URL}/users/supervised/`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const data = await response.json();
@@ -224,6 +234,28 @@ export default function SupervisorUserManagement() {
     performance: {
       getUserPerformance: async (userId) => {
         const response = await fetch(`${BASE_URL}/performance/user/${userId}/`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return response.json();
+      },
+
+      getUserWeeklyPerformance: async (userId, weekOffset = 0) => {
+        const params = new URLSearchParams({ week: weekOffset });
+        const response = await fetch(`${BASE_URL}/report/employee/performance/weekly/?${params}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return response.json();
+      },
+
+      getUserAllTimePerformance: async (userId) => {
+        const response = await fetch(`${BASE_URL}/report/employee/performance/all-time/`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        return response.json();
+      },
+
+      getUserDashboard: async (userId) => {
+        const response = await fetch(`${BASE_URL}/report/employee/dashboard/`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         return response.json();
@@ -317,18 +349,19 @@ export default function SupervisorUserManagement() {
   const loadDetailedUserData = async (user, selectedDate = new Date().toISOString().split('T')[0]) => {
     try {
       setLoading(true);
+      setPerformanceLoading(true);
 
       // Load user details
       const userDetails = await apiService.users.getUser(user.id);
 
-      // Load performance for today
-      const performanceData = await apiService.performance.getUserPerformance(user.id);
-
-      // Load breaks for today
-      const breaksData = await apiService.breaks.getUserBreaks(user.id);
-
-      // Load tasks for today
-      const tasksData = await apiService.tasks.getUserTasks(user.id);
+      // Load performance data in parallel
+      const [weeklyPerf, allTimePerf, dashboard, breaksData, tasksData] = await Promise.all([
+        apiService.performance.getUserWeeklyPerformance(user.id, performanceWeekOffset),
+        apiService.performance.getUserAllTimePerformance(user.id),
+        apiService.performance.getUserDashboard(),
+        apiService.breaks.getUserBreaks(user.id),
+        apiService.tasks.getUserTasks(user.id)
+      ]);
 
       // Filter breaks for today
       const todayBreaks = (breaksData.breaks || []).filter(breakItem => {
@@ -342,19 +375,26 @@ export default function SupervisorUserManagement() {
         return taskDate === selectedDate;
       });
 
-      // Filter logs for today
-      const todayLogs = (performanceData.logs || []).filter(log => {
-        const logDate = new Date(log.actual_time).toISOString().split('T')[0];
-        return logDate === selectedDate;
-      });
+      // Get logs from weekly performance
+      const todayLogs = weeklyPerf.summary?.daily_performance
+        ?.find(day => new Date(day.date).toISOString().split('T')[0] === selectedDate)
+        ?.logs || [];
 
       setDetailedUserData({
         ...userDetails.user,
-        performance: performanceData,
+        performance: weeklyPerf,
+        allTimePerformance: allTimePerf,
+        dashboard: dashboard,
         breaks: todayBreaks,
         tasks: todayTasks,
         logs: todayLogs,
         selectedDate: selectedDate
+      });
+
+      setUserPerformance({
+        weekly: weeklyPerf,
+        allTime: allTimePerf,
+        dashboard: dashboard
       });
 
       setUserBreaks(todayBreaks);
@@ -367,6 +407,7 @@ export default function SupervisorUserManagement() {
       setError('Failed to load user details');
     } finally {
       setLoading(false);
+      setPerformanceLoading(false);
     }
   };
 
@@ -814,6 +855,80 @@ export default function SupervisorUserManagement() {
     );
   };
 
+  const calculatePerformanceMetrics = (performanceData) => {
+    if (!performanceData?.summary) return null;
+
+    const summary = performanceData.summary;
+    return {
+      weeklyScore: summary.overall_score || 0,
+      weeklyRating: summary.performance_rating || 'N/A',
+      attendanceRate: summary.attendance_rate || 0,
+      breakCompletion: summary.break_completion_rate || 0,
+      taskCompletion: summary.task_completion_rate || 0,
+      punctuality: summary.overall_punctuality || 0,
+      avgHoursPerDay: summary.average_hours_per_day || 0,
+      totalHours: summary.total_hours_worked || 0,
+      daysPresent: summary.days_present || 0,
+      daysAbsent: summary.days_absent || 0,
+      dailyPerformance: summary.daily_performance || []
+    };
+  };
+
+  const calculateAllTimeMetrics = (allTimeData) => {
+    if (!allTimeData?.summary) return null;
+
+    const summary = allTimeData.summary;
+    return {
+      overallScore: summary.overall_performance_score || 0,
+      overallRating: summary.performance_rating || 'N/A',
+      attendanceRate: summary.overall_attendance_rate || 0,
+      breakCompletion: summary.overall_break_completion_rate || 0,
+      taskCompletion: summary.overall_task_completion_rate || 0,
+      breakPunctuality: summary.break_punctuality_score || 0,
+      loginPunctuality: summary.login_punctuality_rate || 0,
+      totalDays: summary.total_days_employed || 0,
+      presentDays: summary.total_present_days || 0,
+      totalBreaks: summary.total_breaks_assigned || 0,
+      completedBreaks: summary.total_breaks_completed || 0,
+      totalTasks: summary.total_tasks_assigned || 0,
+      completedTasks: summary.total_tasks_completed || 0,
+      totalLogins: summary.total_logins || 0,
+      onTimeLogins: summary.on_time_logins || 0
+    };
+  };
+
+
+  const PerformanceBadge = ({ rating, score }) => {
+    const getBadgeConfig = (rating) => {
+      switch (rating?.toLowerCase()) {
+        case 'excellent':
+          return { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Award };
+        case 'good':
+          return { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: TrendingUp };
+        case 'average':
+          return { color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: BarChart2 };
+        case 'needs improvement':
+          return { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: AlertTriangle };
+        case 'poor':
+          return { color: 'bg-red-100 text-red-800 border-red-200', icon: TrendingDown };
+        default:
+          return { color: 'bg-gray-100 text-gray-800 border-gray-200', icon: BarChart3 };
+      }
+    };
+
+    const { color, icon: Icon } = getBadgeConfig(rating);
+
+    return (
+      <div className={`px-3 py-2 rounded-lg border flex items-center gap-2 ${color}`}>
+        <Icon className="h-4 w-4" />
+        <div>
+          <div className="font-semibold">{rating}</div>
+          {score && <div className="text-xs opacity-80">Score: {score}/100</div>}
+        </div>
+      </div>
+    );
+  };
+
   // Main render
   if (loading && users.length === 0) {
     return (
@@ -847,13 +962,13 @@ export default function SupervisorUserManagement() {
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </button>
-            {/* <button
+            <button
               onClick={handleAddNewUser}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg transition-all"
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Add User
-            </button> */}
+            </button>
           </div>
         </div>
       </div>
@@ -1054,7 +1169,30 @@ export default function SupervisorUserManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
-
+                              {/* <button
+                                onClick={() => handleViewUser(user)}
+                                className="p-1.5 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
+                                title="Edit User"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button> */}
+                              {/* <button
+                                onClick={() => handlePasswordReset(user)}
+                                className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
+                                title="Reset Password"
+                              >
+                                <Key className="h-4 w-4" />
+                              </button> */}
+                              {/* <button
+                                onClick={() => {
+                                  setUserToDelete(user);
+                                  setShowDeleteModal(true);
+                                }}
+                                className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                                title="Delete User"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button> */}
                             </div>
                           </td>
                         </tr>
@@ -1126,25 +1264,35 @@ export default function SupervisorUserManagement() {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full my-8">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <UserAvatar user={detailedUserData} size="xl" />
-                  <div>
-                    <h2 className="text-2xl font-bold">{detailedUserData.names}</h2>
-                    <p className="text-blue-100 text-sm mt-1">
-                      {detailedUserData.emp_number} • {detailedUserData.role} •
-                      <GenderBadge gender={detailedUserData.gender} />
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  setPerformanceLoading(true);
+                  try {
+                    const [weeklyPerf, allTimePerf] = await Promise.all([
+                      apiService.performance.getUserWeeklyPerformance(detailedUserData.id, performanceWeekOffset),
+                      apiService.performance.getUserAllTimePerformance(detailedUserData.id)
+                    ]);
+                    setUserPerformance({ weekly: weeklyPerf, allTime: allTimePerf });
+                    toast.success('Performance data refreshed');
+                  } catch (error) {
+                    toast.error('Failed to refresh performance data');
+                  } finally {
+                    setPerformanceLoading(false);
+                  }
+                }}
+                disabled={performanceLoading}
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${performanceLoading ? 'animate-spin' : ''}`} />
+                Refresh Performance
+              </button>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
             </div>
 
             {/* Modal Content */}
@@ -1325,16 +1473,43 @@ export default function SupervisorUserManagement() {
               {/* Tabs for Additional Information */}
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="border-b border-gray-200 bg-gray-50">
-                  <nav className="flex">
+                  <nav className="flex overflow-x-auto">
                     {[
-                      { id: 'breaks', label: "Today's Breaks", icon: Coffee, count: userBreaks.length },
-                      { id: 'tasks', label: "Today's Tasks", icon: List, count: userTasks.length },
-                      { id: 'logs', label: "Today's Activity Logs", icon: FileText, count: userLogs.length }
+                      {
+                        id: 'performance',
+                        label: "Performance",
+                        icon: BarChart3,
+                        badge: userPerformance.weekly?.summary?.performance_rating
+                      },
+                      {
+                        id: 'breaks',
+                        label: "Today's Breaks",
+                        icon: Coffee,
+                        count: userBreaks.length
+                      },
+                      {
+                        id: 'tasks',
+                        label: "Today's Tasks",
+                        icon: List,
+                        count: userTasks.length
+                      },
+                      {
+                        id: 'logs',
+                        label: "Activity Logs",
+                        icon: FileText,
+                        count: userLogs.length
+                      },
+                      {
+                        id: 'analytics',
+                        label: "Analytics",
+                        icon: TrendingUp,
+                        badge: "Stats"
+                      }
                     ].map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
+                        className={`flex-shrink-0 flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
                           ? 'border-blue-600 text-blue-600 bg-blue-50'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                           }`}
@@ -1342,10 +1517,18 @@ export default function SupervisorUserManagement() {
                         <span className="flex items-center justify-center gap-2">
                           <tab.icon className="h-4 w-4" />
                           {tab.label}
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                            {tab.count}
-                          </span>
+                          {tab.count !== undefined && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                              }`}>
+                              {tab.count}
+                            </span>
+                          )}
+                          {tab.badge && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                              }`}>
+                              {tab.badge}
+                            </span>
+                          )}
                         </span>
                       </button>
                     ))}
@@ -1353,173 +1536,540 @@ export default function SupervisorUserManagement() {
                 </div>
 
                 <div className="p-4 max-h-96 overflow-y-auto">
-                  {/* Breaks Tab */}
-                  {activeTab === 'breaks' && (
-                    <div className="space-y-3">
-                      {userBreaks.length === 0 ? (
+                  {/* Performance Tab */}
+                  {activeTab === 'performance' && (
+                    <div className="space-y-6">
+                      {performanceLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader className="h-8 w-8 animate-spin text-blue-600" />
+                          <span className="ml-2 text-gray-600">Loading performance data...</span>
+                        </div>
+                      ) : userPerformance.weekly ? (
+                        <>
+                          {/* Performance Week Selector */}
+                          <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm font-medium text-blue-900">
+                                Week: {userPerformance.weekly.summary?.week_start_date
+                                  ? `${new Date(userPerformance.weekly.summary.week_start_date).toLocaleDateString()} - ${new Date(userPerformance.weekly.summary.week_end_date).toLocaleDateString()}`
+                                  : 'Current Week'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={async () => {
+                                  const newOffset = performanceWeekOffset - 1;
+                                  setPerformanceWeekOffset(newOffset);
+                                  const newPerf = await apiService.performance.getUserWeeklyPerformance(detailedUserData.id, newOffset);
+                                  setUserPerformance(prev => ({ ...prev, weekly: newPerf }));
+                                }}
+                                className="p-1 hover:bg-blue-100 rounded"
+                              >
+                                <ChevronLeft className="h-4 w-4 text-blue-600" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const newOffset = performanceWeekOffset + 1;
+                                  setPerformanceWeekOffset(newOffset);
+                                  const newPerf = await apiService.performance.getUserWeeklyPerformance(detailedUserData.id, newOffset);
+                                  setUserPerformance(prev => ({ ...prev, weekly: newPerf }));
+                                }}
+                                className="p-1 hover:bg-blue-100 rounded"
+                              >
+                                <ChevronRight className="h-4 w-4 text-blue-600" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Performance Summary */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="col-span-2">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-4">Performance Summary</h4>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">Overall Score</span>
+                                    <Target className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div className="text-3xl font-bold text-gray-900">
+                                    {calculatePerformanceMetrics(userPerformance.weekly)?.weeklyScore || 0}
+                                    <span className="text-sm text-gray-500">/100</span>
+                                  </div>
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">Rating</span>
+                                    <Award className="h-4 w-4 text-yellow-600" />
+                                  </div>
+                                  <PerformanceBadge
+                                    rating={calculatePerformanceMetrics(userPerformance.weekly)?.weeklyRating}
+                                    score={calculatePerformanceMetrics(userPerformance.weekly)?.weeklyScore}
+                                  />
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">Attendance Rate</span>
+                                    <UserCheck className="h-4 w-4 text-green-600" />
+                                  </div>
+                                  <div className="text-2xl font-bold text-gray-900">
+                                    {calculatePerformanceMetrics(userPerformance.weekly)?.attendanceRate || 0}%
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {calculatePerformanceMetrics(userPerformance.weekly)?.daysPresent || 0} days present
+                                  </div>
+                                </div>
+                                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">Task Completion</span>
+                                    <CheckSquare className="h-4 w-4 text-purple-600" />
+                                  </div>
+                                  <div className="text-2xl font-bold text-gray-900">
+                                    {calculatePerformanceMetrics(userPerformance.weekly)?.taskCompletion || 0}%
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* All-time Performance */}
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900 mb-4">All-time Performance</h4>
+                              <div className="space-y-4">
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-blue-700">Overall Score</span>
+                                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div className="text-2xl font-bold text-blue-900">
+                                    {calculateAllTimeMetrics(userPerformance.allTime)?.overallScore || 0}
+                                    <span className="text-sm text-blue-700">/100</span>
+                                  </div>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-green-700">All-time Rating</span>
+                                    <Award className="h-4 w-4 text-green-600" />
+                                  </div>
+                                  <div className="text-lg font-bold text-green-900">
+                                    {calculateAllTimeMetrics(userPerformance.allTime)?.overallRating || 'N/A'}
+                                  </div>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-purple-700">Break Punctuality</span>
+                                    <Clock className="h-4 w-4 text-purple-600" />
+                                  </div>
+                                  <div className="text-xl font-bold text-purple-900">
+                                    {calculateAllTimeMetrics(userPerformance.allTime)?.breakPunctuality || 0}%
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Daily Performance Breakdown */}
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Daily Performance</h4>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                  <tr className="bg-gray-50">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Date</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Day</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Tasks</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Breaks</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Hours</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Score</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 bg-white">
+                                  {calculatePerformanceMetrics(userPerformance.weekly)?.dailyPerformance?.map((day, index) => (
+                                    <tr key={index} className="hover:bg-gray-50">
+                                      <td className="px-4 py-3 text-sm text-gray-900">
+                                        {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm text-gray-900">
+                                        {day.day_of_week}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <StatusBadge status={day.attendance_status?.toLowerCase()} />
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <div className="text-sm text-gray-900">
+                                          {day.tasks?.completion_rate || 0}%
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          ({day.tasks?.completed || 0}/{day.tasks?.scheduled || 0})
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <div className="text-sm text-gray-900">
+                                          {day.breaks?.completion_rate || 0}%
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          ({day.breaks?.completed || 0}/{day.breaks?.scheduled || 0})
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-sm text-gray-900">
+                                        {day.hours_worked || 0}h
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${(day.punctuality_score || 0) >= 90 ? 'bg-emerald-100 text-emerald-800' :
+                                          (day.punctuality_score || 0) >= 70 ? 'bg-blue-100 text-blue-800' :
+                                            (day.punctuality_score || 0) >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                                              'bg-red-100 text-red-800'
+                                          }`}>
+                                          {day.punctuality_score || 0}/100
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
                         <div className="text-center py-8 text-gray-500">
-                          <Coffee className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm">No breaks scheduled for today</p>
+                          <BarChart3 className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                          <p className="text-sm">No performance data available</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Analytics Tab */}
+                  {activeTab === 'analytics' && (
+                    <div className="space-y-6">
+                      {performanceLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader className="h-8 w-8 animate-spin text-blue-600" />
+                          <span className="ml-2 text-gray-600">Loading analytics...</span>
                         </div>
                       ) : (
-                        userBreaks.map((breakItem) => (
-                          <div key={breakItem.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Coffee className="h-4 w-4 text-gray-600" />
-                                <h4 className="font-medium text-gray-900">{breakItem.break_name}</h4>
+                        <>
+                          {/* Key Performance Indicators */}
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Key Performance Indicators</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Target className="h-5 w-5 text-blue-600" />
+                                  <span className="text-sm font-medium text-blue-900">Productivity Score</span>
+                                </div>
+                                <div className="text-2xl font-bold text-blue-900">
+                                  {Math.round(
+                                    (calculatePerformanceMetrics(userPerformance.weekly)?.taskCompletion || 0) * 0.6 +
+                                    (calculatePerformanceMetrics(userPerformance.weekly)?.breakCompletion || 0) * 0.4
+                                  )}%
+                                </div>
                               </div>
-                              <StatusBadge status={breakItem.status} />
+                              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Clock className="h-5 w-5 text-green-600" />
+                                  <span className="text-sm font-medium text-green-900">Punctuality Score</span>
+                                </div>
+                                <div className="text-2xl font-bold text-green-900">
+                                  {calculatePerformanceMetrics(userPerformance.weekly)?.punctuality || 0}%
+                                </div>
+                              </div>
+                              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                                  <span className="text-sm font-medium text-purple-900">Engagement</span>
+                                </div>
+                                <div className="text-2xl font-bold text-purple-900">
+                                  {Math.round(
+                                    (calculatePerformanceMetrics(userPerformance.weekly)?.attendanceRate || 0) * 0.7 +
+                                    (calculatePerformanceMetrics(userPerformance.weekly)?.avgHoursPerDay || 0) * 3
+                                  )}%
+                                </div>
+                              </div>
+                              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Award className="h-5 w-5 text-orange-600" />
+                                  <span className="text-sm font-medium text-orange-900">Consistency</span>
+                                </div>
+                                <div className="text-2xl font-bold text-orange-900">
+                                  {Math.round(
+                                    ((calculateAllTimeMetrics(userPerformance.allTime)?.presentDays || 0) /
+                                      (calculateAllTimeMetrics(userPerformance.allTime)?.totalDays || 1)) * 100
+                                  )}%
+                                </div>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <p className="text-xs text-gray-500">Scheduled</p>
-                                <p className="text-gray-900">
-                                  {new Date(breakItem.scheduled_start).toLocaleTimeString()} -
-                                  {new Date(breakItem.scheduled_end).toLocaleTimeString()}
-                                </p>
+                          </div>
+
+                          {/* Performance Statistics */}
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Performance Statistics</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                  <BarChart2 className="h-4 w-4 text-blue-600" />
+                                  Weekly Performance Breakdown
+                                </h5>
+                                <div className="space-y-3">
+                                  {[
+                                    { label: 'Task Completion Rate', value: calculatePerformanceMetrics(userPerformance.weekly)?.taskCompletion || 0, color: 'text-blue-600' },
+                                    { label: 'Break Completion Rate', value: calculatePerformanceMetrics(userPerformance.weekly)?.breakCompletion || 0, color: 'text-green-600' },
+                                    { label: 'Attendance Rate', value: calculatePerformanceMetrics(userPerformance.weekly)?.attendanceRate || 0, color: 'text-purple-600' },
+                                    { label: 'Punctuality Score', value: calculatePerformanceMetrics(userPerformance.weekly)?.punctuality || 0, color: 'text-orange-600' },
+                                  ].map((metric, index) => (
+                                    <div key={index} className="flex items-center justify-between">
+                                      <span className="text-sm text-gray-600">{metric.label}</span>
+                                      <span className={`font-semibold ${metric.color}`}>{metric.value}%</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              {breakItem.actual_start && (
+                              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                  <TrendingUp className="h-4 w-4 text-green-600" />
+                                  All-time Performance Metrics
+                                </h5>
+                                <div className="space-y-3">
+                                  {[
+                                    { label: 'Overall Attendance', value: calculateAllTimeMetrics(userPerformance.allTime)?.attendanceRate || 0 },
+                                    { label: 'Task Success Rate', value: calculateAllTimeMetrics(userPerformance.allTime)?.taskCompletion || 0 },
+                                    { label: 'Break Success Rate', value: calculateAllTimeMetrics(userPerformance.allTime)?.breakCompletion || 0 },
+                                    { label: 'Login Punctuality', value: calculateAllTimeMetrics(userPerformance.allTime)?.loginPunctuality || 0 },
+                                  ].map((metric, index) => (
+                                    <div key={index} className="flex items-center justify-between">
+                                      <span className="text-sm text-gray-600">{metric.label}</span>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full"
+                                            style={{ width: `${metric.value}%` }}
+                                          />
+                                        </div>
+                                        <span className="font-semibold text-gray-900 text-sm">{metric.value}%</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Performance Insights */}
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                            <h5 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-blue-600" />
+                              Performance Insights
+                            </h5>
+                            <div className="space-y-2">
+                              {(() => {
+                                const weeklyMetrics = calculatePerformanceMetrics(userPerformance.weekly);
+                                const allTimeMetrics = calculateAllTimeMetrics(userPerformance.allTime);
+                                const insights = [];
+
+                                if (weeklyMetrics?.attendanceRate < 60) {
+                                  insights.push("Attendance rate is below target. Consider reviewing attendance patterns.");
+                                }
+                                if (weeklyMetrics?.taskCompletion < 50) {
+                                  insights.push("Task completion rate is low. Additional support or training may be needed.");
+                                }
+                                if (weeklyMetrics?.breakCompletion < 40) {
+                                  insights.push("Break compliance is low. Ensure scheduled breaks are being taken.");
+                                }
+                                if (allTimeMetrics?.loginPunctuality < 70) {
+                                  insights.push("Login punctuality could be improved. Consider flexible start times.");
+                                }
+                                if (weeklyMetrics?.punctuality < 60) {
+                                  insights.push("General punctuality needs improvement. Review schedule adherence.");
+                                }
+
+                                if (insights.length === 0) {
+                                  insights.push("Performance metrics are within expected ranges. Good job!");
+                                }
+
+                                return insights.map((insight, index) => (
+                                  <div key={index} className="flex items-start gap-2 text-sm text-blue-800">
+                                    <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                                    {insight}
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="p-4 max-h-96 overflow-y-auto">
+                    {/* Breaks Tab */}
+                    {activeTab === 'breaks' && (
+                      <div className="space-y-3">
+                        {userBreaks.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <Coffee className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm">No breaks scheduled for today</p>
+                          </div>
+                        ) : (
+                          userBreaks.map((breakItem) => (
+                            <div key={breakItem.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Coffee className="h-4 w-4 text-gray-600" />
+                                  <h4 className="font-medium text-gray-900">{breakItem.break_name}</h4>
+                                </div>
+                                <StatusBadge status={breakItem.status} />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
                                 <div>
-                                  <p className="text-xs text-gray-500">Actual</p>
+                                  <p className="text-xs text-gray-500">Scheduled</p>
                                   <p className="text-gray-900">
-                                    {new Date(breakItem.actual_start).toLocaleTimeString()}
-                                    {breakItem.actual_end && ` - ${new Date(breakItem.actual_end).toLocaleTimeString()}`}
+                                    {new Date(breakItem.scheduled_start).toLocaleTimeString()} -
+                                    {new Date(breakItem.scheduled_end).toLocaleTimeString()}
                                   </p>
+                                </div>
+                                {breakItem.actual_start && (
+                                  <div>
+                                    <p className="text-xs text-gray-500">Actual</p>
+                                    <p className="text-gray-900">
+                                      {new Date(breakItem.actual_start).toLocaleTimeString()}
+                                      {breakItem.actual_end && ` - ${new Date(breakItem.actual_end).toLocaleTimeString()}`}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {/* <div className="mt-2 text-xs text-gray-500">
+                                Duration: {breakItem.duration_minutes?.toFixed(0) || '0'} minutes
+                              </div> */}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tasks Tab */}
+                    {activeTab === 'tasks' && (
+                      <div className="space-y-3">
+                        {userTasks.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <List className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm">No tasks assigned for today</p>
+                          </div>
+                        ) : (
+                          userTasks.map((task) => (
+                            <div key={task.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <List className="h-4 w-4 text-gray-600" />
+                                  <h4 className="font-medium text-gray-900">{task.task_name}</h4>
+                                </div>
+                                <StatusBadge status={task.status} />
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{task.task_description}</p>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                  <p className="text-xs text-gray-500">Scheduled Start</p>
+                                  <p className="text-gray-900">{new Date(task.start_time).toLocaleTimeString()}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Scheduled End</p>
+                                  <p className="text-gray-900">{new Date(task.end_time).toLocaleTimeString()}</p>
+                                </div>
+                              </div>
+                              {task.actual_start_time && (
+                                <div className="mt-2 text-xs text-gray-500">
+                                  Actual: {new Date(task.actual_start_time).toLocaleTimeString()} -
+                                  {task.actual_end_time ? ` ${new Date(task.actual_end_time).toLocaleTimeString()}` : ' Ongoing'}
                                 </div>
                               )}
                             </div>
-                            <div className="mt-2 text-xs text-gray-500">
-                              Duration: {breakItem.duration_minutes?.toFixed(0) || '0'} minutes
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
+                          ))
+                        )}
+                      </div>
+                    )}
 
-                  {/* Tasks Tab */}
-                  {activeTab === 'tasks' && (
-                    <div className="space-y-3">
-                      {userTasks.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <List className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm">No tasks assigned for today</p>
-                        </div>
-                      ) : (
-                        userTasks.map((task) => (
-                          <div key={task.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <List className="h-4 w-4 text-gray-600" />
-                                <h4 className="font-medium text-gray-900">{task.task_name}</h4>
-                              </div>
-                              <StatusBadge status={task.status} />
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">{task.task_description}</p>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <p className="text-xs text-gray-500">Scheduled Start</p>
-                                <p className="text-gray-900">{new Date(task.start_time).toLocaleTimeString()}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Scheduled End</p>
-                                <p className="text-gray-900">{new Date(task.end_time).toLocaleTimeString()}</p>
-                              </div>
-                            </div>
-                            {task.actual_start_time && (
-                              <div className="mt-2 text-xs text-gray-500">
-                                Actual: {new Date(task.actual_start_time).toLocaleTimeString()} -
-                                {task.actual_end_time ? ` ${new Date(task.actual_end_time).toLocaleTimeString()}` : ' Ongoing'}
+                    {/* Activity Logs Tab */}
+                    {activeTab === 'logs' && (
+                      <div className="space-y-2">
+                        {userLogs.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm">No activity logs for today</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Time</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Type</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Status</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Activity</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Details</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 bg-white">
+                                {userLogs.slice(0, 10).map((log) => (
+                                  <tr key={log.id} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2 text-xs text-gray-900">
+                                      {new Date(log.actual_time).toLocaleTimeString()}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <span className="capitalize bg-gray-100 px-2 py-1 rounded">
+                                        {log.log_type.replace('_', ' ')}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <StatusBadge status={log.status} />
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-gray-900">{log.activity}</td>
+                                    <td className="px-3 py-2 text-xs text-gray-500">
+                                      {log.notes && <div className="truncate max-w-[200px]">{log.notes}</div>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {userLogs.length > 10 && (
+                              <div className="mt-2 text-center text-xs text-gray-500">
+                                Showing 10 of {userLogs.length} logs
                               </div>
                             )}
                           </div>
-                        ))
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                  {/* Activity Logs Tab */}
-                  {activeTab === 'logs' && (
-                    <div className="space-y-2">
-                      {userLogs.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm">No activity logs for today</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Time</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Type</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Status</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Activity</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Details</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 bg-white">
-                              {userLogs.slice(0, 10).map((log) => (
-                                <tr key={log.id} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2 text-xs text-gray-900">
-                                    {new Date(log.actual_time).toLocaleTimeString()}
-                                  </td>
-                                  <td className="px-3 py-2 text-xs">
-                                    <span className="capitalize bg-gray-100 px-2 py-1 rounded">
-                                      {log.log_type.replace('_', ' ')}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <StatusBadge status={log.status} />
-                                  </td>
-                                  <td className="px-3 py-2 text-xs text-gray-900">{log.activity}</td>
-                                  <td className="px-3 py-2 text-xs text-gray-500">
-                                    {log.notes && <div className="truncate max-w-[200px]">{log.notes}</div>}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          {userLogs.length > 10 && (
-                            <div className="mt-2 text-center text-xs text-gray-500">
-                              Showing 10 of {userLogs.length} logs
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-between">
+                <button
+                  onClick={() => handlePasswordReset(detailedUserData)}
+                  className="inline-flex items-center px-4 py-2 border border-purple-600 rounded-lg text-sm font-medium text-purple-600 bg-white hover:bg-purple-50 shadow-sm"
+                >
+                  <Key className="mr-2 h-4 w-4" />
+                  Reset Password
+                </button>
+                <div className="flex gap-3">
+                  {/* <button
+                    onClick={() => handleViewUser(detailedUserData)}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit User
+                  </button> */}
+                  <button
+                    onClick={() => setShowDetailModal(false)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-between">
-              <button
-                onClick={() => handlePasswordReset(detailedUserData)}
-                className="inline-flex items-center px-4 py-2 border border-purple-600 rounded-lg text-sm font-medium text-purple-600 bg-white hover:bg-purple-50 shadow-sm"
-              >
-                <Key className="mr-2 h-4 w-4" />
-                Reset Password
-              </button>
-              <div className="flex gap-3">
-                {/* <button
-                  onClick={() => handleViewUser(detailedUserData)}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit User
-                </button> */}
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
           </div>
+
         </div>
       )}
 

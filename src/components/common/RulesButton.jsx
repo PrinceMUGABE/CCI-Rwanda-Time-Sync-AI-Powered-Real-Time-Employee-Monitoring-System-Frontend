@@ -1,33 +1,36 @@
-// components/common/FloatingChatButton.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import RulesModal from './RulesModal';
 
 const RulesButton = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-
-  // Get user role from localStorage
-  useEffect(() => {
-    try {
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      setUserRole(userData.role);
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-    }
-  }, []);
 
   // Show pulsing effect for new users or after updates
   useEffect(() => {
     // Check if user has seen rules before
     const hasSeenRules = localStorage.getItem('has_seen_rules');
     
-    // Pulse for 30 seconds when modal hasn't been opened before
-    if (!hasSeenRules && (userRole === 'employee' || userRole === 'supervisor')) {
-      setIsPulsing(true);
-      setTimeout(() => setIsPulsing(false), 30000);
+    // Get user role
+    const userDataStr = localStorage.getItem('user');
+    let userRole = 'employee'; // default
+    try {
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        userRole = userData?.role || 'employee';
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
     }
-  }, [userRole]);
+    
+    // Pulse for 30 seconds when modal hasn't been opened before
+    // Only for employees and supervisors, not for logged-out users
+    const token = localStorage.getItem('access_token');
+    if (!hasSeenRules && token && (userRole === 'employee' || userRole === 'supervisor')) {
+      setIsPulsing(true);
+      const timer = setTimeout(() => setIsPulsing(false), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const handleToggle = () => {
     if (!isOpen) {
@@ -46,11 +49,6 @@ const RulesButton = () => {
   const handleClose = () => {
     setIsOpen(false);
   };
-
-  // Don't show floating button for admin users
-  if (userRole === 'admin') {
-    return null;
-  }
 
   return (
     <>

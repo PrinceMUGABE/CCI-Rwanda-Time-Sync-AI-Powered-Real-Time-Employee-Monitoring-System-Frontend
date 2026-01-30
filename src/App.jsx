@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
 // Public Pages
-import RulesButton from './components/common/RulesButton';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
@@ -14,7 +13,7 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 // Layouts
 import AdminLayout from './components/admin/AdminLayout';
 import SupervisorLayout from './components/supervisor/SupervisorLayout';
-
+import EmployeeLayout from './components/employee/EmployeeLayout';
 
 // Admin Pages
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -28,10 +27,10 @@ import ManageShifts from './components/admin/ManageShifts';
 import RulesManagement from './components/admin/RulesAndRegulations';
 
 // Employee Pages
+import EmployeeDashboard from './components/employee/Dashboard';
 import UserProfile from './components/employee/UserProfile';
 import MyTaskAssignmentManagement from './components/employee/TaskAssignments';
 import MyShiftChangeRequestManagement from './components/employee/ShiftChangeRequestManagement';
-import EmployeeDashboard from './components/employee/Dashboard';
 
 // Supervisor Pages
 import SupervisorDashboard from './components/supervisor/Dashboard';
@@ -40,14 +39,13 @@ import SupervisorTaskManagement from './components/supervisor/Tasks';
 import SupervisorShiftChangeRequestManagement from './components/supervisor/ShiftChangeRequestManagement';
 import SupervisorReport from './components/supervisor/ReportPage';
 import SupervisorTaskAssignments from './components/supervisor/TaskAssignment';
+import SupervisorUserManagement from './components/supervisor/UserManagement';
 
-
-
+// Rules Button Component
+import RulesButton from './components/common/RulesButton';
 
 // Context Providers
-import { AuthProvider } from './context/AuthContext';
-import EmployeeLayout from './components/employee/EmployeeLayout';
-import SupervisorUserManagement from './components/supervisor/UserManagement';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Custom Toaster Component
 const Toaster = () => {
@@ -83,45 +81,86 @@ const Toaster = () => {
   );
 };
 
-
-// Updated RulesButtonController component
-const RulesButtonController = () => {
-  const location = useLocation();
-  const [showButton, setShowButton] = useState(false);
-  const [userRole, setUserRole] = useState(null);
+// Helper component for public pages that need RulesButton
+const PublicPageWrapper = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const [showRulesButton, setShowRulesButton] = useState(false);
 
   useEffect(() => {
-    // Get user data from localStorage
-    const token = localStorage.getItem('access_token');
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    // Only show RulesButton on public pages for non-authenticated users
+    // Wait a moment for auth context to initialize
+    const timer = setTimeout(() => {
+      // Use the auth context to check if user is authenticated
+      // Also check localStorage as fallback
+      const token = localStorage.getItem('access_token');
+      const userDataStr = localStorage.getItem('user');
+      
+      let hasValidAuth = false;
+      
+      // Check if token exists and is not expired
+      if (token) {
+        try {
+          // Simple token validation (you might want to add JWT expiration check)
+          const userData = userDataStr ? JSON.parse(userDataStr) : null;
+          // Check if we have user data and a valid role
+          if (userData && userData.role) {
+            hasValidAuth = true;
+          }
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+      
+      // If user is authenticated via context OR has valid token in localStorage,
+      // don't show the rules button
+      if (isAuthenticated || hasValidAuth) {
+        setShowRulesButton(false);
+      } else {
+        setShowRulesButton(true);
+      }
+    }, 100);
     
-    const isAuthenticated = !!token;
-    const currentUserRole = userData.role;
-    setUserRole(currentUserRole);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
 
-    // Public pages where we want to show the rules button
-    const publicPages = ['/', '/login', '/register', '/reset-password'];
-    const isPublicPage = publicPages.includes(location.pathname);
-
-    // Show rules button for:
-    // 1. Non-authenticated users on public pages
-    // 2. Employee users on all pages
-    // 3. Supervisor users on all pages
-    // 4. NOT for Admin users (they have full interface)
-    
-    if (!isAuthenticated && isPublicPage) {
-      setShowButton(true); // Public users on public pages
-    } else if (isAuthenticated && (currentUserRole === 'employee' || currentUserRole === 'supervisor')) {
-      setShowButton(true); // Employees and supervisors
-    } else {
-      setShowButton(false); // Admin users or authenticated users in wrong place
-    }
-
-  }, [location.pathname]);
-
-  return showButton ? <RulesButton /> : null;
+  return (
+    <>
+      {children}
+      {showRulesButton && <RulesButton />}
+    </>
+  );
 };
 
+// Layout wrapper for employees and supervisors with RulesButton
+const EmployeeLayoutWrapper = () => {
+  const { user } = useAuth();
+  
+  // Check if user is actually an employee (not admin or supervisor)
+  const shouldShowRulesButton = user?.role === 'employee';
+  
+  return (
+    <>
+      <EmployeeLayout />
+      {shouldShowRulesButton && <RulesButton />}
+    </>
+  );
+};
+
+const SupervisorLayoutWrapper = () => {
+  const { user } = useAuth();
+  
+  // Check if user is actually a supervisor (not admin or employee)
+  const shouldShowRulesButton = user?.role === 'supervisor';
+  
+  return (
+    <>
+      <SupervisorLayout />
+      {shouldShowRulesButton && <RulesButton />}
+    </>
+  );
+};
+
+// Main App Component
 function App() {
   useEffect(() => {
     AOS.init({
@@ -137,76 +176,100 @@ function App() {
     <div className="bg-white dark:bg-black dark:text-white text-black overflow-x-hidden">
       <Router>
         <AuthProvider>
-          <Routes>
-            {/* ==================== PUBLIC ROUTES ==================== */}
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/help" element={<LandingPage />} />
-
-            {/* ==================== ADMIN ROUTES ==================== */}
-            <Route path="/admin" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<AdminDashboard />} />
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="profile" element={<AdminProfile />} />
-              <Route path="shifts" element={<ManageShifts />} />
-              <Route path="reports" element={<AdminReports />} />
-              <Route path="tasks" element={<TaskManagement />} />
-              <Route path="task-assignments" element={<TaskAssignmentManagement />} />
-              <Route path="shift-change-requests" element={<ShiftChangeRequestManagement />} />
-              <Route path="rules-and-regulations" element={<RulesManagement />} />
-            </Route>
-
-            {/* ==================== SUPERVISOR ROUTES ==================== */}
-            <Route path="/supervisor" element={
-              <ProtectedRoute allowedRoles={['supervisor']}>
-                <SupervisorLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<SupervisorDashboard />} />
-              <Route path="dashboard" element={<SupervisorDashboard />} />
-              <Route path="profile" element={<SupervisorProfile />} />
-              <Route path="tasks" element={<SupervisorTaskManagement />} />
-              <Route path="shift-change-requests" element={<SupervisorShiftChangeRequestManagement />} />
-              <Route path="reports" element={<SupervisorReport />} />
-              <Route path="task-assignments" element={<SupervisorTaskAssignments />} />
-              <Route path="employees" element={<SupervisorUserManagement />} />
-
-            </Route>
-
-
-            {/* ==================== EMPLOYEE ROUTES ==================== */}
-            <Route path="/employee" element={
-              <ProtectedRoute allowedRoles={['employee']}>
-                <EmployeeLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<EmployeeDashboard />} />
-              <Route path="dashboard" element={<EmployeeDashboard />} />
-              <Route path="my-tasks" element={<EmployeeDashboard />} />
-              <Route path="profile" element={<UserProfile />} />
-              <Route path="task-assignments" element={<MyTaskAssignmentManagement />} />
-              <Route path="shift-change-requests" element={<MyShiftChangeRequestManagement />} />
-            </Route>
-            
-            {/* Catch all - redirect to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          
-          {/* Rules Button - Only shown for non-authenticated users on public pages */}
-          <RulesButtonController />
-          
-          <Toaster />
+          <AppRoutes />
         </AuthProvider>
       </Router>
     </div>
   );
 }
+
+// Separate component for routes that uses AuthProvider
+const AppRoutes = () => {
+  return (
+    <>
+      <Routes>
+        {/* ==================== PUBLIC ROUTES ==================== */}
+        <Route path="/" element={
+          <PublicPageWrapper>
+            <LoginPage />
+          </PublicPageWrapper>
+        } />
+        <Route path="/login" element={
+          <PublicPageWrapper>
+            <LoginPage />
+          </PublicPageWrapper>
+        } />
+        <Route path="/register" element={
+          <PublicPageWrapper>
+            <RegisterPage />
+          </PublicPageWrapper>
+        } />
+        <Route path="/reset-password" element={
+          <PublicPageWrapper>
+            <ResetPasswordPage />
+          </PublicPageWrapper>
+        } />
+        <Route path="/help" element={
+          <PublicPageWrapper>
+            <LandingPage />
+          </PublicPageWrapper>
+        } />
+
+        {/* ==================== ADMIN ROUTES ==================== */}
+        <Route path="/admin/*" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<AdminDashboard />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="profile" element={<AdminProfile />} />
+          <Route path="shifts" element={<ManageShifts />} />
+          <Route path="reports" element={<AdminReports />} />
+          <Route path="tasks" element={<TaskManagement />} />
+          <Route path="task-assignments" element={<TaskAssignmentManagement />} />
+          <Route path="shift-change-requests" element={<ShiftChangeRequestManagement />} />
+          <Route path="rules-and-regulations" element={<RulesManagement />} />
+        </Route>
+
+        {/* ==================== SUPERVISOR ROUTES ==================== */}
+        <Route path="/supervisor/*" element={
+          <ProtectedRoute allowedRoles={['supervisor']}>
+            <SupervisorLayoutWrapper />
+          </ProtectedRoute>
+        }>
+          <Route index element={<SupervisorDashboard />} />
+          <Route path="dashboard" element={<SupervisorDashboard />} />
+          <Route path="profile" element={<SupervisorProfile />} />
+          <Route path="tasks" element={<SupervisorTaskManagement />} />
+          <Route path="shift-change-requests" element={<SupervisorShiftChangeRequestManagement />} />
+          <Route path="reports" element={<SupervisorReport />} />
+          <Route path="task-assignments" element={<SupervisorTaskAssignments />} />
+          <Route path="employees" element={<SupervisorUserManagement />} />
+        </Route>
+
+        {/* ==================== EMPLOYEE ROUTES ==================== */}
+        <Route path="/employee/*" element={
+          <ProtectedRoute allowedRoles={['employee']}>
+            <EmployeeLayoutWrapper />
+          </ProtectedRoute>
+        }>
+          <Route index element={<EmployeeDashboard />} />
+          <Route path="dashboard" element={<EmployeeDashboard />} />
+          <Route path="my-tasks" element={<EmployeeDashboard />} />
+          <Route path="profile" element={<UserProfile />} />
+          <Route path="task-assignments" element={<MyTaskAssignmentManagement />} />
+          <Route path="shift-change-requests" element={<MyShiftChangeRequestManagement />} />
+        </Route>
+        
+        {/* Catch all - redirect to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      
+      <Toaster />
+    </>
+  );
+};
 
 export default App;
