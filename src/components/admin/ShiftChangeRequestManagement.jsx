@@ -17,6 +17,8 @@ import {
   Send, Ban, UserX
 } from 'lucide-react';
 
+//updates added
+
 const REQUEST_BASE_URL = 'http://127.0.0.1:8000/request';
 
 export default function ShiftChangeRequestManagement() {
